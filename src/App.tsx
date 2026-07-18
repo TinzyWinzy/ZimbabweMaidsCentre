@@ -14,6 +14,7 @@ import { ProfilePage } from '@/pages/ProfilePage'
 import { VerificationPage } from '@/pages/VerificationPage'
 import { PaymentsPage } from '@/pages/PaymentsPage'
 import { AdminVerificationsPage } from '@/pages/AdminVerificationsPage'
+import { LandingPage } from '@/pages/LandingPage'
 import { useAuthStore } from '@/stores/authStore'
 
 const queryClient = new QueryClient({
@@ -48,8 +49,8 @@ export default function App() {
       <BrowserRouter>
         <ErrorBoundary>
           <Routes>
+              <Route path="/" element={<LandingPage />} />
             <Route element={<AppLayout />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route
@@ -108,7 +109,7 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
         </ErrorBoundary>
