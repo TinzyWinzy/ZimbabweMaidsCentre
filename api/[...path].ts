@@ -97,6 +97,32 @@ function mapJob(row: Record<string, unknown>) {
   }
 }
 
+function mapPublicWorker(row: Record<string, unknown>) {
+  return {
+    id: row.user_id,
+    fullName: row.full_name,
+    location: { city: row.city, suburb: row.suburb },
+    skills: row.skills || [],
+    experienceYears: Number(row.experience_years),
+    expectedSalary: {
+      min: Number(row.salary_min),
+      max: Number(row.salary_max),
+      currency: row.currency,
+    },
+    availability: row.availability || {},
+    languages: row.languages || [],
+    bio: row.bio,
+    photoURL: row.photo_url || '',
+    verificationStatus: row.verification_status || {},
+    rating: Number(row.rating),
+    reviewCount: Number(row.review_count),
+  }
+}
+
+function cleanText(value: unknown, max = 500) {
+  return String(value || '').trim().slice(0, max)
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const path = pathOf(req)
@@ -150,6 +176,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
       res.setHeader('Set-Cookie', `zmc_session=; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=0`)
       return json(res, 200, { ok: true })
+    }
+
+    if (path === '/public/workers' && req.method === 'GET') {
+      const rows = await db()`
+        SELECT * FROM worker_profiles
+        WHERE full_name <> '' AND bio <> ''
+        ORDER BY
+          CASE WHEN verification_status->>'overall' = 'fully_verified' THEN 0 ELSE 1 END,
+          rating DESC, experience_years DESC`
+      return json(res, 200, rows.map((row) => mapPublicWorker(row)))
+    }
+
+    const workerPath = path.match(/^\/public\/workers\/([0-9a-f-]{36})$/i)
+    if (workerPath && req.method === 'GET') {
+      const rows = await db()`SELECT * FROM worker_profiles WHERE user_id=${workerPath[1]} AND full_name <> '' AND bio <> '' LIMIT 1`
+      if (!rows[0]) return json(res, 404, { error: 'Professional not found' })
+      return json(res, 200, mapPublicWorker(rows[0]))
+    }
+
+    if (path === '/public/bookings' && req.method === 'POST') {
+      const b = req.body || {}
+      const clientName = cleanText(b.clientName, 120)
+      const clientEmail = cleanText(b.clientEmail, 180).toLowerCase()
+      const clientPhone = cleanText(b.clientPhone, 40)
+      const city = cleanText(b.city, 80)
+      const suburb = cleanText(b.suburb, 100)
+      const workType = cleanText(b.workType, 50)
+      const startDate = cleanText(b.startDate, 10)
+      if (!clientName || !clientEmail.includes('@') || !clientPhone || !city || !suburb ||
+          !['live-in', 'live-out', 'part-time', 'temporary'].includes(workType) ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        return json(res, 400, { error: 'Please complete all required booking details' })
+      }
+      const worker = await db()`SELECT user_id FROM worker_profiles WHERE user_id=${cleanText(b.workerId, 36)} AND full_name <> '' LIMIT 1`
+      if (!worker[0]) return json(res, 404, { error: 'Professional not found' })
+      const signedInUser = await currentUser(req)
+      const employerId = signedInUser?.role === 'employer' ? signedInUser.id : null
+      const rows = await db()`
+        INSERT INTO bookings (
+          employer_id, worker_id, client_name, client_email, client_phone, city, suburb,
+          work_type, start_date, schedule_notes, requirements
+        ) VALUES (
+          ${employerId}, ${worker[0].user_id}, ${clientName}, ${clientEmail}, ${clientPhone},
+          ${city}, ${suburb}, ${workType}, ${startDate}, ${cleanText(b.scheduleNotes, 500)},
+          ${cleanText(b.requirements, 1500)}
+        ) RETURNING id, status, created_at`
+      await db()`INSERT INTO booking_events (booking_id, status, note, actor_id)
+        VALUES (${rows[0].id}, 'inquiry', 'Placement request received', ${employerId})`
+      return json(res, 201, {
+        id: rows[0].id,
+        status: rows[0].status,
+        createdAt: rows[0].created_at,
+      })
     }
 
     const user = await requireUser(req, res)
@@ -221,6 +300,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })))
     }
 
+    if (path === '/bookings' && req.method === 'GET') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const rows = await db()`
+        SELECT b.*, w.full_name AS worker_name
+        FROM bookings b JOIN worker_profiles w ON w.user_id=b.worker_id
+        ORDER BY b.created_at DESC`
+      return json(res, 200, rows.map((b) => ({
+        id: b.id, employerId: b.employer_id, workerId: b.worker_id, workerName: b.worker_name,
+        clientName: b.client_name, clientEmail: b.client_email, clientPhone: b.client_phone,
+        location: { city: b.city, suburb: b.suburb }, workType: b.work_type,
+        startDate: b.start_date, scheduleNotes: b.schedule_notes, requirements: b.requirements,
+        status: b.status, createdAt: b.created_at, updatedAt: b.updated_at,
+      })))
+    }
+
+    if (path === '/bookings' && req.method === 'PATCH') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const b = req.body || {}
+      const allowedStatuses = ['inquiry', 'matched', 'booked', 'fee_paid', 'worker_assigned', 'started', 'completed', 'cancelled']
+      if (!allowedStatuses.includes(b.status)) return json(res, 400, { error: 'Invalid booking status' })
+      const updated = await db()`UPDATE bookings SET status=${b.status}, updated_at=now() WHERE id=${cleanText(b.bookingId, 36)} RETURNING id`
+      if (!updated[0]) return json(res, 404, { error: 'Booking not found' })
+      await db()`INSERT INTO booking_events (booking_id, status, note, actor_id)
+        VALUES (${updated[0].id}, ${b.status}, ${cleanText(b.note, 500)}, ${user.id})`
+      return json(res, 200, { ok: true })
+    }
+
     if (path === '/payments' && req.method === 'GET') {
       const rows = await db()`SELECT * FROM payments WHERE user_id=${user.id} ORDER BY created_at DESC`
       return json(res, 200, rows.map((p) => ({
@@ -265,15 +371,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (path === '/stats' && req.method === 'GET') {
       if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
-      const [users, jobs, verifications, revenue] = await Promise.all([
+      const [users, jobs, verifications, revenue, bookings] = await Promise.all([
         db()`SELECT count(*)::int AS count FROM users`,
         db()`SELECT count(*)::int AS count FROM jobs WHERE status='active'`,
         db()`SELECT count(*)::int AS count FROM verifications WHERE status='pending'`,
         db()`SELECT coalesce(sum(amount), 0)::numeric AS total FROM payments WHERE status='success'`,
+        db()`SELECT count(*)::int AS count FROM bookings WHERE status NOT IN ('completed', 'cancelled')`,
       ])
       return json(res, 200, {
         totalUsers: users[0].count, activeJobs: jobs[0].count,
         pendingVerifications: verifications[0].count, totalRevenue: Number(revenue[0].total),
+        activeBookings: bookings[0].count,
       })
     }
 

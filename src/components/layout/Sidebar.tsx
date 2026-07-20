@@ -11,6 +11,7 @@ import {
   Shield,
   X,
   LifeBuoy,
+  CalendarDays,
 } from 'lucide-react'
 
 const employerLinks = [
@@ -32,6 +33,7 @@ const workerLinks = [
 
 const adminLinks = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin/bookings', label: 'Bookings', icon: CalendarDays },
   { to: '/admin/verifications', label: 'Verifications', icon: Shield },
 ]
 

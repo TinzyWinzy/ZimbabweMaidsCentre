@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Users, Briefcase, FileCheck, DollarSign, ArrowRight, Database, KeyRound, ListChecks } from 'lucide-react'
+import { Users, Briefcase, FileCheck, DollarSign, ArrowRight, Database, KeyRound, ListChecks, CalendarDays } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
@@ -9,7 +9,7 @@ export function AdminDashboard() {
   const { data: stats } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
-      return api<{ totalUsers: number; activeJobs: number; pendingVerifications: number; totalRevenue: number }>(
+      return api<{ totalUsers: number; activeJobs: number; pendingVerifications: number; totalRevenue: number; activeBookings: number }>(
         isDemo ? '/test/stats' : '/stats'
       )
     },
@@ -17,7 +17,7 @@ export function AdminDashboard() {
 
   const statCards = [
     { title: 'Registered users', value: stats?.totalUsers || 0, icon: Users, href: '/dashboard', detail: 'Across all account types' },
-    { title: 'Active jobs', value: stats?.activeJobs || 0, icon: Briefcase, href: '/jobs', detail: 'Currently visible to workers' },
+    { title: 'Active requests', value: stats?.activeBookings || 0, icon: CalendarDays, href: '/admin/bookings', detail: 'In the placement pipeline' },
     { title: 'Awaiting review', value: stats?.pendingVerifications || 0, icon: FileCheck, href: '/admin/verifications', detail: 'Verification submissions' },
     { title: 'Revenue recorded', value: `$${stats?.totalRevenue || 0}`, icon: DollarSign, href: '/payments', detail: 'Successful payments (USD)' },
   ]
@@ -57,6 +57,7 @@ export function AdminDashboard() {
           <div className="divide-y divide-[#e8ece7]">
             {[
               { to: '/admin/verifications', label: 'Review verifications', desc: `${stats?.pendingVerifications || 0} submissions waiting`, icon: FileCheck },
+              { to: '/admin/bookings', label: 'Manage booking requests', desc: `${stats?.activeBookings || 0} active placement requests`, icon: CalendarDays },
               { to: '/jobs', label: 'Inspect active jobs', desc: `${stats?.activeJobs || 0} listings currently live`, icon: Briefcase },
               { to: '/payments', label: 'Reconcile payments', desc: `$${stats?.totalRevenue || 0} successful revenue recorded`, icon: DollarSign },
             ].map((action) => (

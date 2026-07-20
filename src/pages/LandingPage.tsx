@@ -100,7 +100,7 @@ export function LandingPage() {
               </p>
 
               <div className="mt-10 flex flex-col items-start gap-5 sm:flex-row sm:items-center">
-                <Link to="/services?intent=employer#start" className="oxygen-button group">
+                <Link to="/professionals" className="oxygen-button group">
                   Find a professional
                   <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </Link>
@@ -287,7 +287,7 @@ export function LandingPage() {
                 <p className="mt-8 max-w-xl text-base leading-8 text-white/75">
                   Create your brief and begin reviewing professionals suited to your needs.
                 </p>
-                <Link to="/services?intent=employer#start" className="oxygen-button oxygen-button-light group mt-10">
+                <Link to="/professionals" className="oxygen-button oxygen-button-light group mt-10">
                   Tell us what you need
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
@@ -358,7 +358,7 @@ export function LandingPage() {
               <div className="mb-4 flex gap-5 sm:justify-end">
                 <Link to="/about" className="hover:text-[#173129]">About</Link>
                 <Link to="/services" className="hover:text-[#173129]">Services</Link>
-                <Link to="/register" className="hover:text-[#173129]">Find a professional</Link>
+                <Link to="/professionals" className="hover:text-[#173129]">Find a professional</Link>
                 <Link to="/register" className="hover:text-[#173129]">Join as a worker</Link>
               </div>
               <p>&copy; {new Date().getFullYear()} Zimbabwe Maids Centre.</p>

@@ -9,13 +9,13 @@ import { logoUrl } from '@/lib/brand'
 
 const navLinks = [
   { label: 'Home', href: '/' },
+  { label: 'Find Staff', href: '/professionals' },
   { label: 'About', href: '/about' },
   { label: 'Services', href: '/services' },
   { label: 'How It Works', href: '/#how-it-works' },
-  { label: 'Contact', href: '/#contact' },
 ]
 
-const publicPagePaths = ['/', '/about', '/services']
+const publicPagePaths = ['/', '/about', '/services', '/professionals', '/booking-confirmed']
 
 export function Navbar() {
   const { isAuthenticated, userData } = useAuthStore()
@@ -24,7 +24,9 @@ export function Navbar() {
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const isPublicFull = publicPagePaths.includes(location.pathname)
+  const isPublicFull = publicPagePaths.includes(location.pathname) ||
+    location.pathname.startsWith('/professionals/') ||
+    location.pathname.startsWith('/book/')
 
   const handleLogout = async () => {
     await logout()

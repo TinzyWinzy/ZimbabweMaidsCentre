@@ -21,6 +21,11 @@ const LandingPage = lazy(() => import('@/pages/LandingPage'))
 const AboutPage = lazy(() => import('@/pages/AboutPage'))
 const ServicesPage = lazy(() => import('@/pages/ServicesPage'))
 const MatchesPage = lazy(() => import('@/pages/MatchesPage'))
+const ProfessionalsPage = lazy(() => import('@/pages/ProfessionalsPage'))
+const ProfessionalProfilePage = lazy(() => import('@/pages/ProfessionalProfilePage'))
+const BookingPage = lazy(() => import('@/pages/BookingPage'))
+const BookingConfirmationPage = lazy(() => import('@/pages/BookingConfirmationPage'))
+const AdminBookingsPage = lazy(() => import('@/pages/AdminBookingsPage'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,8 +47,10 @@ function LoadingFallback() {
 function AppLayout() {
   const { isAuthenticated } = useAuthStore()
   const location = useLocation()
-  const publicFullPages = ['/', '/about', '/services', '/login', '/register']
-  const isPublicFull = publicFullPages.includes(location.pathname)
+  const publicFullPages = ['/', '/about', '/services', '/login', '/register', '/professionals', '/booking-confirmed']
+  const isPublicFull = publicFullPages.includes(location.pathname) ||
+    location.pathname.startsWith('/professionals/') ||
+    location.pathname.startsWith('/book/')
 
   return (
     <div className="min-h-screen bg-[var(--color-background)]">
@@ -92,6 +99,26 @@ export default function App() {
               <Route path="/services" element={
                 <Suspense fallback={<LoadingFallback />}>
                   <ServicesPage />
+                </Suspense>
+              } />
+              <Route path="/professionals" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <ProfessionalsPage />
+                </Suspense>
+              } />
+              <Route path="/professionals/:id" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <ProfessionalProfilePage />
+                </Suspense>
+              } />
+              <Route path="/book/:id" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <BookingPage />
+                </Suspense>
+              } />
+              <Route path="/booking-confirmed" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <BookingConfirmationPage />
                 </Suspense>
               } />
               <Route
@@ -170,6 +197,16 @@ export default function App() {
                   <ProtectedRoute roles={['admin']}>
                     <Suspense fallback={<LoadingFallback />}>
                       <AdminVerificationsPage />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/bookings"
+                element={
+                  <ProtectedRoute roles={['admin']}>
+                    <Suspense fallback={<LoadingFallback />}>
+                      <AdminBookingsPage />
                     </Suspense>
                   </ProtectedRoute>
                 }

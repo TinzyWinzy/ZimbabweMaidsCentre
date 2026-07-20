@@ -143,3 +143,40 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 
 CREATE INDEX IF NOT EXISTS payments_user_idx ON payments(user_id, created_at DESC);
+
+DO $$ BEGIN
+  CREATE TYPE booking_status AS ENUM ('inquiry', 'matched', 'booked', 'fee_paid', 'worker_assigned', 'started', 'completed', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employer_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  worker_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  client_name text NOT NULL,
+  client_email text NOT NULL,
+  client_phone text NOT NULL,
+  city text NOT NULL,
+  suburb text NOT NULL,
+  work_type text NOT NULL,
+  start_date date NOT NULL,
+  schedule_notes text NOT NULL DEFAULT '',
+  requirements text NOT NULL DEFAULT '',
+  status booking_status NOT NULL DEFAULT 'inquiry',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS bookings_worker_idx ON bookings(worker_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS bookings_employer_idx ON bookings(employer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS bookings_status_idx ON bookings(status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS booking_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id uuid NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  status booking_status NOT NULL,
+  note text NOT NULL DEFAULT '',
+  actor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS booking_events_booking_idx ON booking_events(booking_id, created_at DESC);
