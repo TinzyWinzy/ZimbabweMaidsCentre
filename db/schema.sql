@@ -3,12 +3,15 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 DO $$ BEGIN
   CREATE TYPE user_role AS ENUM ('employer', 'worker', 'admin', 'verifier');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 DO $$ BEGIN
   CREATE TYPE job_status AS ENUM ('draft', 'active', 'filled', 'expired');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 DO $$ BEGIN
   CREATE TYPE verification_status AS ENUM ('pending', 'approved', 'rejected');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 DO $$ BEGIN
   CREATE TYPE payment_status AS ENUM ('pending', 'success', 'failed', 'refunded');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -33,7 +36,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
 CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id);
+
 CREATE INDEX IF NOT EXISTS sessions_token_hash_idx ON sessions(token_hash);
 
 CREATE TABLE IF NOT EXISTS employer_profiles (
@@ -89,7 +94,9 @@ CREATE TABLE IF NOT EXISTS jobs (
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL DEFAULT (now() + interval '30 days')
 );
+
 CREATE INDEX IF NOT EXISTS jobs_status_created_idx ON jobs(status, created_at DESC);
+
 CREATE INDEX IF NOT EXISTS jobs_employer_idx ON jobs(employer_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS matches (
@@ -118,6 +125,7 @@ CREATE TABLE IF NOT EXISTS verifications (
   created_at timestamptz NOT NULL DEFAULT now(),
   reviewed_at timestamptz
 );
+
 CREATE INDEX IF NOT EXISTS verifications_worker_idx ON verifications(worker_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS payments (
@@ -133,5 +141,5 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS payments_user_idx ON payments(user_id, created_at DESC);
 
+CREATE INDEX IF NOT EXISTS payments_user_idx ON payments(user_id, created_at DESC);
