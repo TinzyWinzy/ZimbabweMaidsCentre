@@ -1,3 +1,9 @@
+# Secrets
+.secrets/
+*-firebase-adminsdk-*.json
+*.local
+test-db/*.db
+
 # Logs
 logs
 *.log
@@ -10,8 +16,6 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
-*-firebase-adminsdk-*.json
 
 # Editor directories and files
 .vscode/*

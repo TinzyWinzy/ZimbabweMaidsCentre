@@ -1,9 +1,15 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Briefcase } from 'lucide-react'
 import { useJobs } from '@/features/jobs/hooks/useJobs'
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
+
+const STATUS_STYLE: Record<string, string> = {
+  active: 'bg-emerald-50 text-emerald-700',
+  filled: 'bg-blue-50 text-blue-700',
+  expired: 'bg-gray-100 text-gray-600',
+  cancelled: 'bg-red-50 text-red-700',
+}
 
 export function JobList() {
   const { userData } = useAuthStore()
@@ -16,42 +22,52 @@ export function JobList() {
 
   if (jobs.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          No jobs found. {isEmployer ? 'Post your first job!' : 'Check back later for new opportunities.'}
-        </CardContent>
-      </Card>
+      <div className="glass-panel-strong rounded-2xl py-16 text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-50 mb-4">
+          <Briefcase className="h-8 w-8 text-emerald-600" />
+        </div>
+        <p className="font-medium text-gray-900 mb-1">
+          {isEmployer ? 'No listings yet' : 'No jobs available'}
+        </p>
+        <p className="text-sm text-gray-500 max-w-xs mx-auto">
+          {isEmployer
+            ? 'Post your first job to start receiving applications from verified workers.'
+            : 'New opportunities are posted daily. Complete your profile to get matched first.'}
+        </p>
+      </div>
     )
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold">
-        {isEmployer ? 'My Job Listings' : 'Available Jobs'}
-      </h2>
-      {jobs.map((job) => (
-        <Card key={job.id}>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle>{job.title}</CardTitle>
-                <p className="text-sm text-muted-foreground">
+    <div className="glass-panel-strong rounded-2xl overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+        <h2 className="font-semibold text-gray-900 text-sm">
+          {isEmployer ? 'Your Listings' : 'Open Positions'}
+        </h2>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {jobs.map((job) => (
+          <div key={job.id} className="px-6 py-5 hover:bg-gray-50/60 transition-colors">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-gray-900">{job.title}</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
                   {job.location.suburb}, {job.location.city}
                 </p>
               </div>
-              <Badge>{job.status}</Badge>
+              <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLE[job.status] || 'bg-gray-100 text-gray-600'}`}>
+                {job.status === 'active' ? 'Live' : job.status === 'filled' ? 'Filled' : job.status}
+              </span>
             </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground line-clamp-2">{job.description}</p>
-            <div className="mt-3 flex flex-wrap gap-4 text-sm">
-              <span>Salary: {formatCurrency(job.salaryRange.min, job.salaryRange.currency)} - {formatCurrency(job.salaryRange.max, job.salaryRange.currency)}</span>
-              <span>Type: {job.workerType}</span>
-              <span>Posted: {formatDate(job.createdAt)}</span>
+            <p className="text-sm text-gray-500 line-clamp-2 mt-3 leading-6">{job.description}</p>
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 text-xs text-gray-400">
+              <span className="font-medium text-gray-600">{formatCurrency(job.salaryRange.min, job.salaryRange.currency)} – {formatCurrency(job.salaryRange.max, job.salaryRange.currency)}</span>
+              <span className="capitalize">{job.workerType}</span>
+              <span>{formatDate(job.createdAt)}</span>
             </div>
-          </CardContent>
-        </Card>
-      ))}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

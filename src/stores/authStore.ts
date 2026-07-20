@@ -1,15 +1,18 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { UserData } from '@/types'
+import type { User } from 'firebase/auth'
 
 interface AuthState {
-  user: unknown | null
+  user: User | null
   userData: UserData | null
   isAuthenticated: boolean
   isAdmin: boolean
   isEmployer: boolean
   isWorker: boolean
-  setUser: (user: unknown | null, userData: UserData | null) => void
+  isDemo: boolean
+  setUser: (user: User | null, userData: UserData | null) => void
+  demoLogin: (userData: UserData) => void
   logout: () => void
 }
 
@@ -22,6 +25,7 @@ export const useAuthStore = create<AuthState>()(
       isAdmin: false,
       isEmployer: false,
       isWorker: false,
+      isDemo: false,
       setUser: (user, userData) => set({
         user,
         userData,
@@ -29,6 +33,16 @@ export const useAuthStore = create<AuthState>()(
         isAdmin: userData?.role === 'admin',
         isEmployer: userData?.role === 'employer',
         isWorker: userData?.role === 'worker',
+        isDemo: false,
+      }),
+      demoLogin: (userData) => set({
+        user: { uid: userData.uid } as User,
+        userData,
+        isAuthenticated: true,
+        isAdmin: userData.role === 'admin',
+        isEmployer: userData.role === 'employer',
+        isWorker: userData.role === 'worker',
+        isDemo: true,
       }),
       logout: () => set({
         user: null,
@@ -37,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
         isAdmin: false,
         isEmployer: false,
         isWorker: false,
+        isDemo: false,
       }),
     }),
     {

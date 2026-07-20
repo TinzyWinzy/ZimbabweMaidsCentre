@@ -2,13 +2,24 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, type QueryConstraint } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { JobListing } from '@/types/job'
+import { useAuthStore } from '@/stores/authStore'
 
 export function useJobs(filters?: { status?: string; employerId?: string }) {
   const queryClient = useQueryClient()
+  const { isDemo, userData } = useAuthStore()
 
   const jobsQuery = useQuery({
     queryKey: ['jobs', filters],
     queryFn: async () => {
+      if (isDemo) {
+        const params = new URLSearchParams({
+          uid: userData?.uid || '',
+          role: userData?.role || 'worker',
+        })
+        const response = await fetch(`/api/test/jobs?${params}`)
+        if (!response.ok) throw new Error('Failed to load local test jobs')
+        return await response.json() as JobListing[]
+      }
       const constraints: QueryConstraint[] = []
       if (filters?.status) constraints.push(where('status', '==', filters.status))
       if (filters?.employerId) constraints.push(where('employerId', '==', filters.employerId))
@@ -22,6 +33,15 @@ export function useJobs(filters?: { status?: string; employerId?: string }) {
 
   const createJob = useMutation({
     mutationFn: async (data: Omit<JobListing, 'id' | 'createdAt'>) => {
+      if (isDemo) {
+        const response = await fetch('/api/test/jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        })
+        if (!response.ok) throw new Error('Failed to create local test job')
+        return (await response.json()).id as string
+      }
       const docRef = await addDoc(collection(db, 'jobs'), {
         ...data,
         createdAt: new Date(),

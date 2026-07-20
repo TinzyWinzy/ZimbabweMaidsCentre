@@ -10,3 +10,5 @@ export function DashboardPage() {
   if (userData?.role === 'employer') return <EmployerDashboard />
   return <WorkerDashboard />
 }
+
+export default DashboardPage

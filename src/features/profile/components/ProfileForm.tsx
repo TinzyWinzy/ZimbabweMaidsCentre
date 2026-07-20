@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuthStore } from '@/stores/authStore'
 import { useWorkerProfile } from '@/features/profile/hooks/useWorkerProfile'
 import { useProfile } from '@/features/profile/hooks/useProfile'
@@ -47,72 +46,86 @@ export function ProfileForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{isWorker ? 'Worker Profile' : 'Employer Profile'}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Full Name</label>
-            <Input {...register('fullName', { required: true })} />
-            {errors.fullName && <p className="text-xs text-destructive">Full name is required</p>}
-          </div>
+    <div className="space-y-8 max-w-2xl mx-auto">
+      {/* Page header */}
+      <div className="pb-6 border-b border-gray-100">
+        <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600 mb-1">Account Settings</p>
+        <h1 className="page-title text-3xl md:text-4xl">
+          {isWorker ? 'Worker Profile' : 'Employer Profile'}
+        </h1>
+        <p className="text-gray-500 mt-1.5 text-sm">Manage your personal information and preferences.</p>
+      </div>
 
-          {isWorker && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Gender</label>
-              <Select {...register('gender')}>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
-                <option value="other">Other</option>
-              </Select>
+      <div className="glass-panel-strong rounded-2xl overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+          <h2 className="font-semibold text-gray-900 text-sm">Personal Information</h2>
+        </div>
+        <div className="p-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Full Name</label>
+              <Input {...register('fullName', { required: true })} className="h-11 rounded-xl" placeholder="John Doe" />
+              {errors.fullName && <p className="text-xs text-red-500">Full name is required</p>}
             </div>
-          )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">City</label>
-              <Input {...register('city', { required: true })} placeholder="Harare" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Suburb</label>
-              <Input {...register('suburb', { required: true })} placeholder="Borrowdale" />
-            </div>
-          </div>
-
-          {isWorker && (
-            <>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Skills (comma-separated)</label>
-                <Input {...register('skills')} placeholder="Cooking, Cleaning, Childcare" />
+            {isWorker && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Gender</label>
+                <Select {...register('gender')} className="h-11 rounded-xl">
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="other">Other</option>
+                </Select>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Years of Experience</label>
-                <Input type="number" {...register('experienceYears')} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Bio</label>
-                <textarea
-                  {...register('bio')}
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
-                />
-              </div>
-            </>
-          )}
+            )}
 
-          {!isWorker && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Household Size</label>
-              <Input type="number" {...register('householdSize')} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">City</label>
+                <Input {...register('city', { required: true })} placeholder="Harare" className="h-11 rounded-xl" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Suburb</label>
+                <Input {...register('suburb', { required: true })} placeholder="Borrowdale" className="h-11 rounded-xl" />
+              </div>
             </div>
-          )}
 
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save Profile'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+            {isWorker && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Skills (comma-separated)</label>
+                  <Input {...register('skills')} placeholder="Cooking, Cleaning, Childcare" className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Years of Experience</label>
+                  <Input type="number" {...register('experienceYears')} className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Bio</label>
+                  <textarea
+                    {...register('bio')}
+                    placeholder="Tell employers a bit about yourself..."
+                    className="flex min-h-[100px] w-full rounded-xl border border-input bg-transparent px-3 py-3 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+              </>
+            )}
+
+            {!isWorker && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Household Size</label>
+                <Input type="number" {...register('householdSize')} className="h-11 rounded-xl" />
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-gray-100 mt-6">
+              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto h-11 px-8 rounded-xl btn-primary-glow">
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   )
 }

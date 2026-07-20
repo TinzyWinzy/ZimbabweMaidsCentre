@@ -1,21 +1,26 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Suspense } from 'react'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { ProtectedRoute } from '@/components/shared/ProtectedRoute'
 import { Navbar } from '@/components/layout/Navbar'
 import { Sidebar } from '@/components/layout/Sidebar'
-import { Toast } from '@/components/ui/toast'
-import { LoginPage } from '@/pages/LoginPage'
-import { RegisterPage } from '@/pages/RegisterPage'
-import { DashboardPage } from '@/pages/DashboardPage'
-import { JobsPage } from '@/pages/JobsPage'
-import { NewJobPage } from '@/pages/NewJobPage'
-import { ProfilePage } from '@/pages/ProfilePage'
-import { VerificationPage } from '@/pages/VerificationPage'
-import { PaymentsPage } from '@/pages/PaymentsPage'
-import { AdminVerificationsPage } from '@/pages/AdminVerificationsPage'
-import { LandingPage } from '@/pages/LandingPage'
+import { lazy } from 'react'
 import { useAuthStore } from '@/stores/authStore'
+
+const LoginPage = lazy(() => import('@/pages/LoginPage'))
+const RegisterPage = lazy(() => import('@/pages/RegisterPage'))
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
+const JobsPage = lazy(() => import('@/pages/JobsPage'))
+const NewJobPage = lazy(() => import('@/pages/NewJobPage'))
+const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
+const VerificationPage = lazy(() => import('@/pages/VerificationPage'))
+const PaymentsPage = lazy(() => import('@/pages/PaymentsPage'))
+const AdminVerificationsPage = lazy(() => import('@/pages/AdminVerificationsPage'))
+const LandingPage = lazy(() => import('@/pages/LandingPage'))
+const AboutPage = lazy(() => import('@/pages/AboutPage'))
+const ServicesPage = lazy(() => import('@/pages/ServicesPage'))
+const MatchesPage = lazy(() => import('@/pages/MatchesPage'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,19 +31,33 @@ const queryClient = new QueryClient({
   },
 })
 
+function LoadingFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+    </div>
+  )
+}
+
 function AppLayout() {
   const { isAuthenticated } = useAuthStore()
+  const location = useLocation()
+  const publicFullPages = ['/', '/about', '/services', '/login', '/register']
+  const isPublicFull = publicFullPages.includes(location.pathname)
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--color-background)]">
       <Navbar />
       {isAuthenticated && <Sidebar />}
-      <main className={isAuthenticated ? 'lg:pl-64' : ''}>
-        <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
+      <main className={isAuthenticated ? 'min-h-screen bg-[#f5f7f3] pt-[72px] lg:pl-[272px]' : ''}>
+        {isPublicFull ? (
           <Outlet />
-        </div>
+        ) : (
+          <div className="mx-auto max-w-[1360px] px-4 py-6 sm:px-7 sm:py-8 lg:px-10 lg:py-10">
+            <Outlet />
+          </div>
+        )}
       </main>
-      <Toast />
     </div>
   )
 }
@@ -49,15 +68,39 @@ export default function App() {
       <BrowserRouter>
         <ErrorBoundary>
           <Routes>
-              <Route path="/" element={<LandingPage />} />
             <Route element={<AppLayout />}>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <LandingPage />
+                </Suspense>
+              } />
+              <Route path="/login" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <LoginPage />
+                </Suspense>
+              } />
+              <Route path="/register" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <RegisterPage />
+                </Suspense>
+              } />
+              <Route path="/about" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <AboutPage />
+                </Suspense>
+              } />
+              <Route path="/services" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <ServicesPage />
+                </Suspense>
+              } />
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
-                    <DashboardPage />
+                    <Suspense fallback={<LoadingFallback />}>
+                      <DashboardPage />
+                    </Suspense>
                   </ProtectedRoute>
                 }
               />
@@ -65,7 +108,9 @@ export default function App() {
                 path="/jobs"
                 element={
                   <ProtectedRoute>
-                    <JobsPage />
+                    <Suspense fallback={<LoadingFallback />}>
+                      <JobsPage />
+                    </Suspense>
                   </ProtectedRoute>
                 }
               />
@@ -73,7 +118,9 @@ export default function App() {
                 path="/jobs/new"
                 element={
                   <ProtectedRoute roles={['employer']}>
-                    <NewJobPage />
+                    <Suspense fallback={<LoadingFallback />}>
+                      <NewJobPage />
+                    </Suspense>
                   </ProtectedRoute>
                 }
               />
@@ -81,7 +128,9 @@ export default function App() {
                 path="/profile"
                 element={
                   <ProtectedRoute>
-                    <ProfilePage />
+                    <Suspense fallback={<LoadingFallback />}>
+                      <ProfilePage />
+                    </Suspense>
                   </ProtectedRoute>
                 }
               />
@@ -89,7 +138,19 @@ export default function App() {
                 path="/verification"
                 element={
                   <ProtectedRoute roles={['worker']}>
-                    <VerificationPage />
+                    <Suspense fallback={<LoadingFallback />}>
+                      <VerificationPage />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/matches"
+                element={
+                  <ProtectedRoute roles={['employer', 'worker']}>
+                    <Suspense fallback={<LoadingFallback />}>
+                      <MatchesPage />
+                    </Suspense>
                   </ProtectedRoute>
                 }
               />
@@ -97,7 +158,9 @@ export default function App() {
                 path="/payments"
                 element={
                   <ProtectedRoute>
-                    <PaymentsPage />
+                    <Suspense fallback={<LoadingFallback />}>
+                      <PaymentsPage />
+                    </Suspense>
                   </ProtectedRoute>
                 }
               />
@@ -105,7 +168,9 @@ export default function App() {
                 path="/admin/verifications"
                 element={
                   <ProtectedRoute roles={['admin']}>
-                    <AdminVerificationsPage />
+                    <Suspense fallback={<LoadingFallback />}>
+                      <AdminVerificationsPage />
+                    </Suspense>
                   </ProtectedRoute>
                 }
               />

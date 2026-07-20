@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useVerification } from '@/features/verification/hooks/useVerification'
 import { useAuthStore } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
@@ -48,11 +47,14 @@ export function KYCUpload() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Verification Documents</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="glass-panel-strong rounded-2xl overflow-hidden">
+      <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+        <h2 className="font-semibold text-gray-900">Required Documents</h2>
+        <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+          Secure Upload
+        </span>
+      </div>
+      <div className="p-6 space-y-4">
         <input
           ref={fileInputRef}
           type="file"
@@ -60,27 +62,33 @@ export function KYCUpload() {
           className="hidden"
           onChange={handleFileChange}
         />
-        {documentTypes.map(({ type, label }) => {
-          const status = getStatusForType(type)
-          const isUploading = uploading === type
-          return (
-            <div key={type} className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium">{label}</p>
-                <p className="text-xs text-muted-foreground">{status}</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {documentTypes.map(({ type, label }) => {
+            const status = getStatusForType(type)
+            const isUploading = uploading === type
+            return (
+              <div key={type} className="flex flex-col p-5 rounded-xl border border-gray-100 bg-white shadow-sm hover:border-emerald-200 hover:shadow-md transition-all duration-200">
+                <div className="mb-4 flex-1">
+                  <p className="font-medium text-gray-900 mb-1">{label}</p>
+                  <p className="text-xs text-gray-500 capitalize">{status.replace('_', ' ')}</p>
+                </div>
+                <Button
+                  className={`w-full rounded-lg h-9 ${
+                    status === 'approved'
+                      ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                      : 'border-gray-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700'
+                  }`}
+                  variant={status === 'approved' ? 'ghost' : 'outline'}
+                  disabled={status === 'approved' || isUploading}
+                  onClick={() => handleUpload(type)}
+                >
+                  {isUploading ? 'Uploading...' : status === 'approved' ? 'Verified' : 'Upload File'}
+                </Button>
               </div>
-              <Button
-                size="sm"
-                variant={status === 'approved' ? 'ghost' : 'outline'}
-                disabled={status === 'approved' || isUploading}
-                onClick={() => handleUpload(type)}
-              >
-                {isUploading ? 'Uploading...' : status === 'approved' ? 'Verified' : 'Upload'}
-              </Button>
-            </div>
-          )
-        })}
-      </CardContent>
-    </Card>
+            )
+          })}
+        </div>
+      </div>
+    </div>
   )
 }

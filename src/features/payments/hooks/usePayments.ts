@@ -3,14 +3,21 @@ import { collection, query, where, orderBy, getDocs } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '@/lib/firebase'
 import type { Payment } from '@/types/payment'
+import { useAuthStore } from '@/stores/authStore'
 
 export function usePayments(userId: string | undefined) {
   const queryClient = useQueryClient()
+  const { isDemo } = useAuthStore()
 
   const paymentsQuery = useQuery({
     queryKey: ['payments', userId],
     queryFn: async () => {
       if (!userId) return []
+      if (isDemo) {
+        const response = await fetch(`/api/test/payments?uid=${encodeURIComponent(userId)}`)
+        if (!response.ok) throw new Error('Failed to load local test payments')
+        return await response.json() as Payment[]
+      }
       const q = query(
         collection(db, 'payments'),
         where('userId', '==', userId),
