@@ -67,6 +67,8 @@ await sql`
     bio=EXCLUDED.bio, verification_status=EXCLUDED.verification_status,
     rating=EXCLUDED.rating, review_count=EXCLUDED.review_count, updated_at=now()`
 
+await sql`UPDATE worker_profiles SET category='Nanny', work_types=${['live-out', 'full-time']}, is_published=true WHERE user_id=${workerId}`
+
 await sql`
   INSERT INTO worker_profiles (
     user_id, full_name, gender, city, suburb, skills, experience_years,
@@ -86,6 +88,37 @@ await sql`
     skills=EXCLUDED.skills, experience_years=EXCLUDED.experience_years,
     bio=EXCLUDED.bio, verification_status=EXCLUDED.verification_status,
     rating=EXCLUDED.rating, review_count=EXCLUDED.review_count, updated_at=now()`
+
+await sql`UPDATE worker_profiles SET category='Housekeeper', work_types=${['live-in', 'full-time']}, is_published=true WHERE user_id=${workerTwoId}`
+
+await sql`
+  INSERT INTO applicants (
+    id, full_name, email, phone_number, whatsapp_number, city, suburb, category,
+    work_types, skills, languages, experience_years, expected_salary, bio, source, stage, notes
+  ) VALUES
+    (
+      '50000000-0000-4000-8000-000000000001', 'Memory Dube', 'memory.dube@example.test',
+      '+263771000201', '+263771000201', 'Harare', 'Mbare', 'Nanny', ${['live-out']},
+      ${['Childcare', 'Meal preparation']}, ${['English', 'Shona']}, 3, 190,
+      'Childcare professional with preschool and household support experience.', 'website', 'screened',
+      'Phone screening completed for review fixture.'
+    ),
+    (
+      '50000000-0000-4000-8000-000000000002', 'Nyasha Chari', 'nyasha.chari@example.test',
+      '+263771000202', '+263771000202', 'Harare', 'Highfield', 'Housekeeper', ${['live-in']},
+      ${['Cleaning', 'Laundry', 'Cooking']}, ${['English', 'Shona']}, 5, 220,
+      'Experienced live-in housekeeper seeking a long-term placement.', 'admin', 'training',
+      'Reference call complete; awaiting training completion.'
+    ),
+    (
+      '50000000-0000-4000-8000-000000000003', 'Thandiwe Sibanda', 'thandiwe.sibanda@example.test',
+      '+263771000203', '+263771000203', 'Bulawayo', 'Hillside', 'Nurse Aide', ${['live-out']},
+      ${['Elder care', 'First aid']}, ${['English', 'Ndebele']}, 4, 260,
+      'Qualified nurse aide with companion-care and household support experience.', 'website', 'approved',
+      'Approved for conversion after final profile review.'
+    )
+  ON CONFLICT (id) DO UPDATE SET
+    stage=EXCLUDED.stage, notes=EXCLUDED.notes, updated_at=now()`
 
 const jobOneId = '10000000-0000-4000-8000-000000000001'
 const jobTwoId = '10000000-0000-4000-8000-000000000002'

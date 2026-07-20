@@ -9,7 +9,7 @@ export function AdminDashboard() {
   const { data: stats } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
-      return api<{ totalUsers: number; activeJobs: number; pendingVerifications: number; totalRevenue: number; activeBookings: number }>(
+      return api<{ totalUsers: number; activeJobs: number; pendingVerifications: number; totalRevenue: number; activeBookings: number; activeApplicants: number }>(
         isDemo ? '/test/stats' : '/stats'
       )
     },
@@ -58,6 +58,7 @@ export function AdminDashboard() {
             {[
               { to: '/admin/verifications', label: 'Review verifications', desc: `${stats?.pendingVerifications || 0} submissions waiting`, icon: FileCheck },
               { to: '/admin/bookings', label: 'Manage booking requests', desc: `${stats?.activeBookings || 0} active placement requests`, icon: CalendarDays },
+              { to: '/admin/applicants', label: 'Progress applicants', desc: `${stats?.activeApplicants || 0} candidates in recruitment`, icon: Users },
               { to: '/jobs', label: 'Inspect active jobs', desc: `${stats?.activeJobs || 0} listings currently live`, icon: Briefcase },
               { to: '/payments', label: 'Reconcile payments', desc: `$${stats?.totalRevenue || 0} successful revenue recorded`, icon: DollarSign },
             ].map((action) => (

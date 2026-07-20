@@ -180,3 +180,53 @@ CREATE TABLE IF NOT EXISTS booking_events (
 );
 
 CREATE INDEX IF NOT EXISTS booking_events_booking_idx ON booking_events(booking_id, created_at DESC);
+
+ALTER TABLE worker_profiles ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'Housekeeper';
+ALTER TABLE worker_profiles ADD COLUMN IF NOT EXISTS work_types text[] NOT NULL DEFAULT '{}';
+ALTER TABLE worker_profiles ADD COLUMN IF NOT EXISTS is_published boolean NOT NULL DEFAULT true;
+ALTER TABLE worker_profiles ADD COLUMN IF NOT EXISTS admin_notes text NOT NULL DEFAULT '';
+
+DO $$ BEGIN
+  CREATE TYPE applicant_stage AS ENUM ('new', 'screened', 'interviewed', 'training', 'approved', 'converted', 'rejected');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS applicants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  full_name text NOT NULL,
+  email text NOT NULL DEFAULT '',
+  phone_number text NOT NULL,
+  whatsapp_number text NOT NULL DEFAULT '',
+  city text NOT NULL,
+  suburb text NOT NULL DEFAULT '',
+  category text NOT NULL DEFAULT 'Housekeeper',
+  work_types text[] NOT NULL DEFAULT '{}',
+  skills text[] NOT NULL DEFAULT '{}',
+  languages text[] NOT NULL DEFAULT '{}',
+  experience_years integer NOT NULL DEFAULT 0 CHECK (experience_years >= 0),
+  expected_salary numeric(12,2) NOT NULL DEFAULT 0,
+  bio text NOT NULL DEFAULT '',
+  source text NOT NULL DEFAULT 'admin',
+  stage applicant_stage NOT NULL DEFAULT 'new',
+  interview_at timestamptz,
+  notes text NOT NULL DEFAULT '',
+  converted_worker_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS applicants_stage_created_idx ON applicants(stage, created_at DESC);
+CREATE INDEX IF NOT EXISTS applicants_phone_idx ON applicants(phone_number);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type text NOT NULL,
+  entity_id text NOT NULL,
+  action text NOT NULL,
+  actor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  before_data jsonb,
+  after_data jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS audit_logs_entity_idx ON audit_logs(entity_type, entity_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_logs_actor_idx ON audit_logs(actor_id, created_at DESC);

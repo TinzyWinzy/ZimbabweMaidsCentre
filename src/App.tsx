@@ -26,6 +26,9 @@ const ProfessionalProfilePage = lazy(() => import('@/pages/ProfessionalProfilePa
 const BookingPage = lazy(() => import('@/pages/BookingPage'))
 const BookingConfirmationPage = lazy(() => import('@/pages/BookingConfirmationPage'))
 const AdminBookingsPage = lazy(() => import('@/pages/AdminBookingsPage'))
+const AdminWorkersPage = lazy(() => import('@/pages/AdminWorkersPage'))
+const AdminApplicantsPage = lazy(() => import('@/pages/AdminApplicantsPage'))
+const ApplyPage = lazy(() => import('@/pages/ApplyPage'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,7 +50,7 @@ function LoadingFallback() {
 function AppLayout() {
   const { isAuthenticated } = useAuthStore()
   const location = useLocation()
-  const publicFullPages = ['/', '/about', '/services', '/login', '/register', '/professionals', '/booking-confirmed']
+  const publicFullPages = ['/', '/about', '/services', '/login', '/register', '/professionals', '/booking-confirmed', '/apply']
   const isPublicFull = publicFullPages.includes(location.pathname) ||
     location.pathname.startsWith('/professionals/') ||
     location.pathname.startsWith('/book/')
@@ -119,6 +122,11 @@ export default function App() {
               <Route path="/booking-confirmed" element={
                 <Suspense fallback={<LoadingFallback />}>
                   <BookingConfirmationPage />
+                </Suspense>
+              } />
+              <Route path="/apply" element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <ApplyPage />
                 </Suspense>
               } />
               <Route
@@ -211,6 +219,16 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/admin/workers" element={
+                <ProtectedRoute roles={['admin']}>
+                  <Suspense fallback={<LoadingFallback />}><AdminWorkersPage /></Suspense>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/applicants" element={
+                <ProtectedRoute roles={['admin']}>
+                  <Suspense fallback={<LoadingFallback />}><AdminApplicantsPage /></Suspense>
+                </ProtectedRoute>
+              } />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

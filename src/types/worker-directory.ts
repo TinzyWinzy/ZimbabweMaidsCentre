@@ -9,6 +9,9 @@ export interface PublicWorker {
   languages: string[]
   bio: string
   photoURL: string
+  category: string
+  workTypes: string[]
+  isPublished: boolean
   verificationStatus: Record<string, string>
   rating: number
   reviewCount: number

@@ -15,7 +15,7 @@ const navLinks = [
   { label: 'How It Works', href: '/#how-it-works' },
 ]
 
-const publicPagePaths = ['/', '/about', '/services', '/professionals', '/booking-confirmed']
+const publicPagePaths = ['/', '/about', '/services', '/professionals', '/booking-confirmed', '/apply']
 
 export function Navbar() {
   const { isAuthenticated, userData } = useAuthStore()

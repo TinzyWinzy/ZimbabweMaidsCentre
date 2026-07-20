@@ -113,6 +113,9 @@ function mapPublicWorker(row: Record<string, unknown>) {
     languages: row.languages || [],
     bio: row.bio,
     photoURL: row.photo_url || '',
+    category: row.category || 'Housekeeper',
+    workTypes: row.work_types || [],
+    isPublished: row.is_published !== false,
     verificationStatus: row.verification_status || {},
     rating: Number(row.rating),
     reviewCount: Number(row.review_count),
@@ -121,6 +124,28 @@ function mapPublicWorker(row: Record<string, unknown>) {
 
 function cleanText(value: unknown, max = 500) {
   return String(value || '').trim().slice(0, max)
+}
+
+function textList(value: unknown, maxItems = 20) {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => cleanText(item, 80)).filter(Boolean).slice(0, maxItems)
+}
+
+function mapApplicant(row: Record<string, unknown>) {
+  return {
+    id: row.id, fullName: row.full_name, email: row.email, phoneNumber: row.phone_number,
+    whatsappNumber: row.whatsapp_number, location: { city: row.city, suburb: row.suburb },
+    category: row.category, workTypes: row.work_types || [], skills: row.skills || [],
+    languages: row.languages || [], experienceYears: Number(row.experience_years),
+    expectedSalary: Number(row.expected_salary), bio: row.bio, source: row.source,
+    stage: row.stage, interviewAt: row.interview_at, notes: row.notes,
+    convertedWorkerId: row.converted_worker_id, createdAt: row.created_at, updatedAt: row.updated_at,
+  }
+}
+
+async function audit(actorId: string, entityType: string, entityId: string, action: string, beforeData?: unknown, afterData?: unknown) {
+  await db()`INSERT INTO audit_logs (entity_type, entity_id, action, actor_id, before_data, after_data)
+    VALUES (${entityType}, ${entityId}, ${action}, ${actorId}, ${beforeData ? JSON.stringify(beforeData) : null}, ${afterData ? JSON.stringify(afterData) : null})`
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -181,7 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (path === '/public/workers' && req.method === 'GET') {
       const rows = await db()`
         SELECT * FROM worker_profiles
-        WHERE full_name <> '' AND bio <> ''
+        WHERE full_name <> '' AND bio <> '' AND is_published=true
         ORDER BY
           CASE WHEN verification_status->>'overall' = 'fully_verified' THEN 0 ELSE 1 END,
           rating DESC, experience_years DESC`
@@ -190,7 +215,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const workerPath = path.match(/^\/public\/workers\/([0-9a-f-]{36})$/i)
     if (workerPath && req.method === 'GET') {
-      const rows = await db()`SELECT * FROM worker_profiles WHERE user_id=${workerPath[1]} AND full_name <> '' AND bio <> '' LIMIT 1`
+      const rows = await db()`SELECT * FROM worker_profiles WHERE user_id=${workerPath[1]} AND full_name <> '' AND bio <> '' AND is_published=true LIMIT 1`
       if (!rows[0]) return json(res, 404, { error: 'Professional not found' })
       return json(res, 200, mapPublicWorker(rows[0]))
     }
@@ -231,8 +256,190 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
+    if (path === '/public/applicants' && req.method === 'POST') {
+      const a = req.body || {}
+      const fullName = cleanText(a.fullName, 120)
+      const phoneNumber = cleanText(a.phoneNumber, 40)
+      const city = cleanText(a.city, 80)
+      if (!fullName || !phoneNumber || !city) {
+        return json(res, 400, { error: 'Name, phone number, and city are required' })
+      }
+      const rows = await db()`
+        INSERT INTO applicants (
+          full_name, email, phone_number, whatsapp_number, city, suburb, category,
+          work_types, skills, languages, experience_years, expected_salary, bio, source
+        ) VALUES (
+          ${fullName}, ${cleanText(a.email, 180).toLowerCase()}, ${phoneNumber},
+          ${cleanText(a.whatsappNumber, 40)}, ${city}, ${cleanText(a.suburb, 100)},
+          ${cleanText(a.category, 80) || 'Housekeeper'}, ${textList(a.workTypes)},
+          ${textList(a.skills)}, ${textList(a.languages)}, ${Math.max(0, Number(a.experienceYears) || 0)},
+          ${Math.max(0, Number(a.expectedSalary) || 0)}, ${cleanText(a.bio, 1500)}, 'website'
+        ) RETURNING id`
+      return json(res, 201, { id: rows[0].id, stage: 'new' })
+    }
+
     const user = await requireUser(req, res)
     if (!user) return
+
+    if (path === '/admin/workers' && req.method === 'GET') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const rows = await db()`
+        SELECT wp.*, u.email, u.is_verified
+        FROM worker_profiles wp JOIN users u ON u.id=wp.user_id
+        ORDER BY wp.updated_at DESC`
+      return json(res, 200, rows.map((row) => ({
+        ...mapPublicWorker(row), email: row.email, isVerified: row.is_verified,
+        adminNotes: row.admin_notes, phoneNumber: row.phone_number, whatsappNumber: row.whatsapp_number,
+        createdAt: row.created_at, updatedAt: row.updated_at,
+      })))
+    }
+
+    if (path === '/admin/workers' && req.method === 'POST') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const w = req.body || {}
+      const email = cleanText(w.email, 180).toLowerCase()
+      const fullName = cleanText(w.fullName, 120)
+      if (!email.includes('@') || !fullName) return json(res, 400, { error: 'Full name and a valid email are required' })
+      const existing = await db()`SELECT id FROM users WHERE email=${email}`
+      if (existing.length) return json(res, 409, { error: 'That email is already registered' })
+      const created = await db()`INSERT INTO users (email, password_hash, display_name, role)
+        VALUES (${email}, ${hashPassword(randomBytes(24).toString('base64url'))}, ${fullName}, 'worker') RETURNING id`
+      const workerId = created[0].id as string
+      await db()`INSERT INTO worker_profiles (
+        user_id, full_name, city, suburb, category, work_types, skills, experience_years,
+        salary_min, salary_max, languages, bio, phone_number, whatsapp_number, is_published, admin_notes
+      ) VALUES (
+        ${workerId}, ${fullName}, ${cleanText(w.city, 80)}, ${cleanText(w.suburb, 100)},
+        ${cleanText(w.category, 80) || 'Housekeeper'}, ${textList(w.workTypes)}, ${textList(w.skills)},
+        ${Math.max(0, Number(w.experienceYears) || 0)}, ${Math.max(0, Number(w.salaryMin) || 0)},
+        ${Math.max(0, Number(w.salaryMax) || 0)}, ${textList(w.languages)}, ${cleanText(w.bio, 1500)},
+        ${cleanText(w.phoneNumber, 40)}, ${cleanText(w.whatsappNumber, 40)}, ${Boolean(w.isPublished)},
+        ${cleanText(w.adminNotes, 1500)}
+      )`
+      await audit(user.id, 'worker', workerId, 'created', undefined, { fullName, email })
+      return json(res, 201, { id: workerId })
+    }
+
+    if (path === '/admin/workers' && req.method === 'PATCH') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const w = req.body || {}
+      const workerId = cleanText(w.workerId, 36)
+      const before = await db()`SELECT * FROM worker_profiles WHERE user_id=${workerId}`
+      if (!before[0]) return json(res, 404, { error: 'Worker not found' })
+      await db()`UPDATE worker_profiles SET
+        full_name=${cleanText(w.fullName, 120)}, city=${cleanText(w.city, 80)}, suburb=${cleanText(w.suburb, 100)},
+        category=${cleanText(w.category, 80) || 'Housekeeper'}, work_types=${textList(w.workTypes)},
+        skills=${textList(w.skills)}, experience_years=${Math.max(0, Number(w.experienceYears) || 0)},
+        salary_min=${Math.max(0, Number(w.salaryMin) || 0)}, salary_max=${Math.max(0, Number(w.salaryMax) || 0)},
+        languages=${textList(w.languages)}, bio=${cleanText(w.bio, 1500)}, phone_number=${cleanText(w.phoneNumber, 40)},
+        whatsapp_number=${cleanText(w.whatsappNumber, 40)}, is_published=${Boolean(w.isPublished)},
+        admin_notes=${cleanText(w.adminNotes, 1500)}, updated_at=now()
+        WHERE user_id=${workerId}`
+      await db()`UPDATE users SET display_name=${cleanText(w.fullName, 120)}, updated_at=now() WHERE id=${workerId}`
+      await audit(user.id, 'worker', workerId, 'updated', before[0], { ...w, workerId: undefined })
+      return json(res, 200, { ok: true })
+    }
+
+    if (path === '/admin/workers/import' && req.method === 'POST') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 250) : []
+      if (!rows.length) return json(res, 400, { error: 'No import rows supplied' })
+      const results: { row: number; email: string; status: string; error?: string }[] = []
+      for (let index = 0; index < rows.length; index += 1) {
+        const w = rows[index] || {}
+        const email = cleanText(w.email, 180).toLowerCase()
+        const fullName = cleanText(w.fullName, 120)
+        try {
+          if (!email.includes('@') || !fullName) throw new Error('Full name and valid email required')
+          const existing = await db()`SELECT id FROM users WHERE email=${email}`
+          if (existing.length) throw new Error('Email already registered')
+          const created = await db()`INSERT INTO users (email, password_hash, display_name, role)
+            VALUES (${email}, ${hashPassword(randomBytes(24).toString('base64url'))}, ${fullName}, 'worker') RETURNING id`
+          await db()`INSERT INTO worker_profiles (
+            user_id, full_name, city, suburb, category, work_types, skills, experience_years,
+            salary_min, salary_max, languages, bio, phone_number, whatsapp_number, is_published
+          ) VALUES (
+            ${created[0].id}, ${fullName}, ${cleanText(w.city, 80)}, ${cleanText(w.suburb, 100)},
+            ${cleanText(w.category, 80) || 'Housekeeper'}, ${textList(w.workTypes)}, ${textList(w.skills)},
+            ${Math.max(0, Number(w.experienceYears) || 0)}, ${Math.max(0, Number(w.salaryMin) || 0)},
+            ${Math.max(0, Number(w.salaryMax) || 0)}, ${textList(w.languages)}, ${cleanText(w.bio, 1500)},
+            ${cleanText(w.phoneNumber, 40)}, ${cleanText(w.whatsappNumber, 40)}, false
+          )`
+          await audit(user.id, 'worker', created[0].id as string, 'imported', undefined, { fullName, email })
+          results.push({ row: index + 2, email, status: 'imported' })
+        } catch (error) {
+          results.push({ row: index + 2, email, status: 'failed', error: error instanceof Error ? error.message : 'Import failed' })
+        }
+      }
+      return json(res, 200, { imported: results.filter((item) => item.status === 'imported').length, failed: results.filter((item) => item.status === 'failed').length, results })
+    }
+
+    if (path === '/admin/applicants' && req.method === 'GET') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const rows = await db()`SELECT * FROM applicants ORDER BY created_at DESC`
+      return json(res, 200, rows.map((row) => mapApplicant(row)))
+    }
+
+    if (path === '/admin/applicants' && req.method === 'POST') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const a = req.body || {}
+      const fullName = cleanText(a.fullName, 120)
+      const phoneNumber = cleanText(a.phoneNumber, 40)
+      if (!fullName || !phoneNumber) return json(res, 400, { error: 'Full name and phone number are required' })
+      const rows = await db()`INSERT INTO applicants (
+        full_name, email, phone_number, whatsapp_number, city, suburb, category, work_types,
+        skills, languages, experience_years, expected_salary, bio, source, notes
+      ) VALUES (
+        ${fullName}, ${cleanText(a.email, 180).toLowerCase()}, ${phoneNumber}, ${cleanText(a.whatsappNumber, 40)},
+        ${cleanText(a.city, 80)}, ${cleanText(a.suburb, 100)}, ${cleanText(a.category, 80) || 'Housekeeper'},
+        ${textList(a.workTypes)}, ${textList(a.skills)}, ${textList(a.languages)},
+        ${Math.max(0, Number(a.experienceYears) || 0)}, ${Math.max(0, Number(a.expectedSalary) || 0)},
+        ${cleanText(a.bio, 1500)}, 'admin', ${cleanText(a.notes, 1500)}
+      ) RETURNING *`
+      await audit(user.id, 'applicant', rows[0].id as string, 'created', undefined, rows[0])
+      return json(res, 201, mapApplicant(rows[0]))
+    }
+
+    if (path === '/admin/applicants' && req.method === 'PATCH') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const a = req.body || {}
+      const allowedStages = ['new', 'screened', 'interviewed', 'training', 'approved', 'rejected']
+      if (!allowedStages.includes(a.stage)) return json(res, 400, { error: 'Invalid applicant stage' })
+      const applicantId = cleanText(a.applicantId, 36)
+      const before = await db()`SELECT * FROM applicants WHERE id=${applicantId}`
+      if (!before[0]) return json(res, 404, { error: 'Applicant not found' })
+      await db()`UPDATE applicants SET stage=${a.stage}, notes=${cleanText(a.notes ?? before[0].notes, 1500)},
+        interview_at=${a.interviewAt ? new Date(a.interviewAt) : before[0].interview_at}, updated_at=now() WHERE id=${applicantId}`
+      await audit(user.id, 'applicant', applicantId, 'stage_changed', before[0], { stage: a.stage, notes: a.notes, interviewAt: a.interviewAt })
+      return json(res, 200, { ok: true })
+    }
+
+    const convertPath = path.match(/^\/admin\/applicants\/([0-9a-f-]{36})\/convert$/i)
+    if (convertPath && req.method === 'POST') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const rows = await db()`SELECT * FROM applicants WHERE id=${convertPath[1]} LIMIT 1`
+      const a = rows[0]
+      if (!a) return json(res, 404, { error: 'Applicant not found' })
+      if (a.stage !== 'approved') return json(res, 400, { error: 'Applicant must be approved before conversion' })
+      if (!String(a.email || '').includes('@')) return json(res, 400, { error: 'Add a valid applicant email before conversion' })
+      const existing = await db()`SELECT id FROM users WHERE email=${a.email}`
+      if (existing.length) return json(res, 409, { error: 'Applicant email is already registered' })
+      const created = await db()`INSERT INTO users (email, password_hash, display_name, phone_number, role)
+        VALUES (${a.email}, ${hashPassword(randomBytes(24).toString('base64url'))}, ${a.full_name}, ${a.phone_number}, 'worker') RETURNING id`
+      const workerId = created[0].id as string
+      await db()`INSERT INTO worker_profiles (
+        user_id, full_name, city, suburb, category, work_types, skills, experience_years,
+        salary_min, salary_max, languages, bio, phone_number, whatsapp_number, is_published
+      ) VALUES (
+        ${workerId}, ${a.full_name}, ${a.city}, ${a.suburb}, ${a.category}, ${a.work_types}, ${a.skills},
+        ${a.experience_years}, ${a.expected_salary}, ${a.expected_salary}, ${a.languages}, ${a.bio},
+        ${a.phone_number}, ${a.whatsapp_number}, false
+      )`
+      await db()`UPDATE applicants SET stage='converted', converted_worker_id=${workerId}, updated_at=now() WHERE id=${a.id}`
+      await audit(user.id, 'applicant', a.id as string, 'converted', a, { workerId })
+      await audit(user.id, 'worker', workerId, 'created_from_applicant', undefined, { applicantId: a.id })
+      return json(res, 201, { workerId })
+    }
 
     if (path === '/jobs' && req.method === 'GET') {
       const rows = user.role === 'employer'
@@ -371,17 +578,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (path === '/stats' && req.method === 'GET') {
       if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
-      const [users, jobs, verifications, revenue, bookings] = await Promise.all([
+      const [users, jobs, verifications, revenue, bookings, applicants] = await Promise.all([
         db()`SELECT count(*)::int AS count FROM users`,
         db()`SELECT count(*)::int AS count FROM jobs WHERE status='active'`,
         db()`SELECT count(*)::int AS count FROM verifications WHERE status='pending'`,
         db()`SELECT coalesce(sum(amount), 0)::numeric AS total FROM payments WHERE status='success'`,
         db()`SELECT count(*)::int AS count FROM bookings WHERE status NOT IN ('completed', 'cancelled')`,
+        db()`SELECT count(*)::int AS count FROM applicants WHERE stage NOT IN ('converted', 'rejected')`,
       ])
       return json(res, 200, {
         totalUsers: users[0].count, activeJobs: jobs[0].count,
         pendingVerifications: verifications[0].count, totalRevenue: Number(revenue[0].total),
-        activeBookings: bookings[0].count,
+        activeBookings: bookings[0].count, activeApplicants: applicants[0].count,
       })
     }
 

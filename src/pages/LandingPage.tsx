@@ -105,7 +105,7 @@ export function LandingPage() {
                   <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </Link>
                 <Link
-                  to="/services?intent=worker#start"
+                  to="/apply"
                   className="border-b border-[#173129]/30 pb-1 text-sm font-semibold text-[#173129] transition-colors hover:border-[#78b83c] hover:text-[#43892d]"
                 >
                   I&apos;m looking for work
@@ -359,7 +359,7 @@ export function LandingPage() {
                 <Link to="/about" className="hover:text-[#173129]">About</Link>
                 <Link to="/services" className="hover:text-[#173129]">Services</Link>
                 <Link to="/professionals" className="hover:text-[#173129]">Find a professional</Link>
-                <Link to="/register" className="hover:text-[#173129]">Join as a worker</Link>
+                <Link to="/apply" className="hover:text-[#173129]">Join as a worker</Link>
               </div>
               <p>&copy; {new Date().getFullYear()} Zimbabwe Maids Centre.</p>
             </div>
