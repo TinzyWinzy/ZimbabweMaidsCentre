@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useUIStore } from '@/stores/uiStore'
 import type { UserRole } from '@/types'
+import { logoUrl } from '@/lib/brand'
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -106,7 +107,7 @@ export function RegisterForm() {
       <Card className="w-full max-w-md border-0 bg-transparent shadow-none animate-slide-up">
         <CardHeader className="space-y-1 pb-6">
           <div className="flex items-center justify-center mb-4">
-            <img src="/logo.jpg" alt="" className="h-12 w-12 rounded-full ring-2 ring-emerald-500/30" />
+            <img src={logoUrl} alt="" className="h-12 w-12 rounded-full ring-2 ring-emerald-500/30" />
           </div>
           <CardTitle className="font-display text-4xl font-semibold text-center text-[#173129]">Create account</CardTitle>
           <CardDescription className="text-center text-gray-500">

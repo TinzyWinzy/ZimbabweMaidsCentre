@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/authStore'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useUIStore } from '@/stores/uiStore'
+import { logoUrl } from '@/lib/brand'
 
 const navLinks = [
   { label: 'Home', href: '/' },
@@ -52,7 +53,7 @@ export function Navbar() {
           )}
           <Link to="/" className="group flex items-center gap-3">
             <img
-              src="/logo.jpg"
+              src={logoUrl}
               alt="Zimbabwe Maids Centre"
               className="h-9 w-9 rounded-full object-cover ring-1 ring-[#78b83c]/50 transition-opacity duration-300 group-hover:opacity-80"
             />

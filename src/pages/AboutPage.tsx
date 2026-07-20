@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { Reveal } from '@/components/shared/Reveal'
 import { SmartLeadForm } from '@/components/shared/SmartLeadForm'
+import { logoUrl } from '@/lib/brand'
 
 const stats = [
   { value: '50+', label: 'Families Placed' },
@@ -216,7 +217,7 @@ export function AboutPage() {
           <div className="mx-auto flex max-w-[1280px] flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <img src="/logo.jpg" alt="" className="h-10 w-10 rounded-full object-cover" />
+                <img src={logoUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
                 <p className="font-display text-xl font-semibold">Zimbabwe Maids Centre</p>
               </div>
               <p className="mt-4 text-sm text-[#6d8078]">
