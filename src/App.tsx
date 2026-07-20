@@ -29,6 +29,8 @@ const AdminBookingsPage = lazy(() => import('@/pages/AdminBookingsPage'))
 const AdminWorkersPage = lazy(() => import('@/pages/AdminWorkersPage'))
 const AdminApplicantsPage = lazy(() => import('@/pages/AdminApplicantsPage'))
 const ApplyPage = lazy(() => import('@/pages/ApplyPage'))
+const AdminCapacityPage = lazy(() => import('@/pages/AdminCapacityPage'))
+const ActivateAccountPage = lazy(() => import('@/pages/ActivateAccountPage'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,7 +52,7 @@ function LoadingFallback() {
 function AppLayout() {
   const { isAuthenticated } = useAuthStore()
   const location = useLocation()
-  const publicFullPages = ['/', '/about', '/services', '/login', '/register', '/professionals', '/booking-confirmed', '/apply']
+  const publicFullPages = ['/', '/about', '/services', '/login', '/register', '/professionals', '/booking-confirmed', '/apply', '/activate']
   const isPublicFull = publicFullPages.includes(location.pathname) ||
     location.pathname.startsWith('/professionals/') ||
     location.pathname.startsWith('/book/')
@@ -128,6 +130,9 @@ export default function App() {
                 <Suspense fallback={<LoadingFallback />}>
                   <ApplyPage />
                 </Suspense>
+              } />
+              <Route path="/activate" element={
+                <Suspense fallback={<LoadingFallback />}><ActivateAccountPage /></Suspense>
               } />
               <Route
                 path="/dashboard"
@@ -227,6 +232,11 @@ export default function App() {
               <Route path="/admin/applicants" element={
                 <ProtectedRoute roles={['admin']}>
                   <Suspense fallback={<LoadingFallback />}><AdminApplicantsPage /></Suspense>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/capacity" element={
+                <ProtectedRoute roles={['admin']}>
+                  <Suspense fallback={<LoadingFallback />}><AdminCapacityPage /></Suspense>
                 </ProtectedRoute>
               } />
               <Route path="*" element={<Navigate to="/" replace />} />

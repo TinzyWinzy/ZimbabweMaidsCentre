@@ -35,7 +35,7 @@ function parseCsv(source: string) {
 }
 
 export function AdminWorkersPage() {
-  const { workers, isLoading, create, update, importRows } = useAdminWorkers()
+  const { workers, isLoading, create, update, importRows, invite } = useAdminWorkers()
   const inputRef = useRef<HTMLInputElement>(null)
   const [search, setSearch] = useState('')
   const [published, setPublished] = useState('all')
@@ -102,6 +102,17 @@ export function AdminWorkersPage() {
     URL.revokeObjectURL(link.href)
   }
 
+  async function copyActivationLink(workerId: string) {
+    try {
+      const result = await invite.mutateAsync(workerId)
+      const link = `${window.location.origin}/activate?token=${encodeURIComponent(result.activationToken)}`
+      await navigator.clipboard.writeText(link)
+      setMessage('A new seven-day activation link was copied. Send it privately to the worker.')
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not create activation link.')
+    }
+  }
+
   return (
     <div className="space-y-7">
       <header className="flex flex-col gap-5 border-b border-[#dfe6df] pb-7 sm:flex-row sm:items-end sm:justify-between">
@@ -129,12 +140,12 @@ export function AdminWorkersPage() {
             <button onClick={() => openWorker(worker)} className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg border border-[#dfe6df] text-[#617069] hover:text-[#173129]" aria-label={`Edit ${worker.fullName}`}><Pencil className="h-4 w-4" /></button>
           </article>)}</div>}
       </section>
-      {editing && <WorkerEditor worker={editing} setWorker={setEditing} onClose={() => setEditing(null)} onSave={save} error={formError} busy={create.isPending || update.isPending} />}
+      {editing && <WorkerEditor worker={editing} setWorker={setEditing} onClose={() => setEditing(null)} onSave={save} onInvite={() => copyActivationLink(editing.workerId)} error={formError} busy={create.isPending || update.isPending || invite.isPending} />}
     </div>
   )
 }
 
-function WorkerEditor({ worker, setWorker, onClose, onSave, error, busy }: { worker: typeof blankWorker; setWorker: (value: typeof blankWorker) => void; onClose: () => void; onSave: () => void; error: string; busy: boolean }) {
+function WorkerEditor({ worker, setWorker, onClose, onSave, onInvite, error, busy }: { worker: typeof blankWorker; setWorker: (value: typeof blankWorker) => void; onClose: () => void; onSave: () => void; onInvite: () => void; error: string; busy: boolean }) {
   const set = (key: keyof typeof worker, value: string | number | boolean | string[]) => setWorker({ ...worker, [key]: value })
   return <div className="fixed inset-0 z-[70] flex justify-end bg-[#10271f]/45" role="dialog" aria-modal="true"><div className="h-full w-full max-w-2xl overflow-y-auto bg-[#f8f7f2] shadow-2xl">
     <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#dfe6df] bg-[#f8f7f2]/95 px-6 py-5 backdrop-blur"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#4d8d3a]">{worker.workerId ? 'Edit profile' : 'New profile'}</p><h2 className="mt-1 font-display text-2xl font-semibold text-[#173129]">{worker.fullName || 'Add a professional'}</h2></div><button onClick={onClose} className="p-2"><X className="h-5 w-5" /></button></div>
@@ -157,7 +168,7 @@ function WorkerEditor({ worker, setWorker, onClose, onSave, error, busy }: { wor
       <label className="flex items-center gap-3 sm:col-span-2"><input type="checkbox" checked={worker.isPublished} onChange={(e) => set('isPublished', e.target.checked)} className="h-4 w-4 accent-[#43892d]" /><span className="text-sm font-semibold text-[#31483f]">Publish this profile in the public directory</span></label>
       {error && <p className="text-sm text-red-700 sm:col-span-2">{error}</p>}
     </div>
-    <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#dfe6df] bg-[#f8f7f2] px-6 py-4"><button onClick={onClose} className="h-11 px-5 text-sm font-semibold text-[#617069]">Cancel</button><button disabled={busy} onClick={onSave} className="h-11 rounded-lg bg-[#173129] px-6 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Saving…' : 'Save profile'}</button></div>
+    <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-[#dfe6df] bg-[#f8f7f2] px-6 py-4">{worker.workerId && <button disabled={busy} onClick={onInvite} className="mr-auto h-11 rounded-lg border border-[#b9c8bb] bg-white px-4 text-sm font-semibold text-[#315d4d]">Copy activation link</button>}<button onClick={onClose} className="h-11 px-5 text-sm font-semibold text-[#617069]">Cancel</button><button disabled={busy} onClick={onSave} className="h-11 rounded-lg bg-[#173129] px-6 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Saving…' : 'Save profile'}</button></div>
   </div></div>
 }
 

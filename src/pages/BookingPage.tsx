@@ -18,6 +18,7 @@ export function BookingPage() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<BookingRequest>({
+    clientRequestId: crypto.randomUUID(),
     workerId: id || '',
     clientName: userData?.displayName || '',
     clientEmail: userData?.email || '',

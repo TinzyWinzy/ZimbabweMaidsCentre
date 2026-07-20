@@ -230,3 +230,39 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE INDEX IF NOT EXISTS audit_logs_entity_idx ON audit_logs(entity_type, entity_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS audit_logs_actor_idx ON audit_logs(actor_id, created_at DESC);
+
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_request_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS bookings_client_request_idx
+  ON bookings(client_request_id) WHERE client_request_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS bookings_created_status_idx ON bookings(created_at DESC, status);
+CREATE INDEX IF NOT EXISTS worker_profiles_public_directory_idx
+  ON worker_profiles(is_published, city, category, rating DESC) WHERE is_published=true;
+CREATE INDEX IF NOT EXISTS worker_profiles_skills_gin_idx ON worker_profiles USING gin(skills);
+CREATE INDEX IF NOT EXISTS worker_profiles_work_types_gin_idx ON worker_profiles USING gin(work_types);
+CREATE INDEX IF NOT EXISTS applicants_updated_stage_idx ON applicants(updated_at DESC, stage);
+CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS request_rate_limits (
+  scope text NOT NULL,
+  identifier_hash text NOT NULL,
+  window_started_at timestamptz NOT NULL,
+  request_count integer NOT NULL DEFAULT 1,
+  PRIMARY KEY (scope, identifier_hash, window_started_at)
+);
+
+CREATE INDEX IF NOT EXISTS request_rate_limits_expiry_idx ON request_rate_limits(window_started_at);
+
+CREATE TABLE IF NOT EXISTS account_invites (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash text UNIQUE NOT NULL,
+  expires_at timestamptz NOT NULL,
+  accepted_at timestamptz,
+  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS account_invites_user_idx ON account_invites(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS account_invites_expiry_idx ON account_invites(expires_at);

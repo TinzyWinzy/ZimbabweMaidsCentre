@@ -18,6 +18,7 @@ export interface PublicWorker {
 }
 
 export interface BookingRequest {
+  clientRequestId: string
   workerId: string
   clientName: string
   clientEmail: string

@@ -14,6 +14,7 @@ import {
   CalendarDays,
   UsersRound,
   ClipboardList,
+  Gauge,
 } from 'lucide-react'
 
 const employerLinks = [
@@ -38,6 +39,7 @@ const adminLinks = [
   { to: '/admin/bookings', label: 'Bookings', icon: CalendarDays },
   { to: '/admin/workers', label: 'Worker Roster', icon: UsersRound },
   { to: '/admin/applicants', label: 'Applicants', icon: ClipboardList },
+  { to: '/admin/capacity', label: 'Capacity', icon: Gauge },
   { to: '/admin/verifications', label: 'Verifications', icon: Shield },
 ]
 

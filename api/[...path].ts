@@ -27,6 +27,43 @@ function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex')
 }
 
+function requestIp(req: VercelRequest) {
+  const forwarded = req.headers['x-forwarded-for']
+  return cleanText(Array.isArray(forwarded) ? forwarded[0] : String(forwarded || req.socket?.remoteAddress || 'unknown').split(',')[0], 100)
+}
+
+async function enforceRateLimit(req: VercelRequest, res: VercelResponse, scope: string, limit: number, windowMs: number, discriminator = '') {
+  const identifier = `${requestIp(req)}:${discriminator.toLowerCase()}`
+  const identifierHash = hashToken(identifier)
+  const windowStartedAt = new Date(Math.floor(Date.now() / windowMs) * windowMs)
+  const rows = await db()`INSERT INTO request_rate_limits (scope, identifier_hash, window_started_at, request_count)
+    VALUES (${scope}, ${identifierHash}, ${windowStartedAt}, 1)
+    ON CONFLICT (scope, identifier_hash, window_started_at)
+    DO UPDATE SET request_count=request_rate_limits.request_count + 1
+    RETURNING request_count`
+  const count = Number(rows[0].request_count)
+  res.setHeader('X-RateLimit-Limit', String(limit))
+  res.setHeader('X-RateLimit-Remaining', String(Math.max(0, limit - count)))
+  if (count > limit) {
+    res.setHeader('Retry-After', String(Math.ceil(windowMs / 1000)))
+    json(res, 429, { error: 'Too many requests. Please wait and try again.' })
+    return false
+  }
+  return true
+}
+
+function validRequestOrigin(req: VercelRequest, res: VercelResponse) {
+  const origin = req.headers.origin
+  if (!origin) return true
+  const forwardedHost = req.headers['x-forwarded-host']
+  const host = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost || req.headers.host
+  try {
+    if (new URL(origin).host === host) return true
+  } catch { /* invalid origins are rejected below */ }
+  json(res, 403, { error: 'Request origin is not allowed' })
+  return false
+}
+
 function hashPassword(password: string) {
   const salt = randomBytes(16).toString('hex')
   return `${salt}:${scryptSync(password, salt, 64).toString('hex')}`
@@ -46,6 +83,15 @@ async function createSession(res: VercelResponse, userId: string) {
   await db()`INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (${userId}, ${hashToken(token)}, ${expiresAt})`
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
   res.setHeader('Set-Cookie', `zmc_session=${token}; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=${sessionDays * 86400}`)
+}
+
+async function createInvite(userId: string, createdBy: string) {
+  const token = randomBytes(32).toString('base64url')
+  const expiresAt = new Date(Date.now() + 7 * 86400000)
+  await db()`UPDATE account_invites SET accepted_at=now() WHERE user_id=${userId} AND accepted_at IS NULL`
+  await db()`INSERT INTO account_invites (user_id, token_hash, expires_at, created_by)
+    VALUES (${userId}, ${hashToken(token)}, ${expiresAt}, ${createdBy})`
+  return { token, expiresAt }
 }
 
 async function currentUser(req: VercelRequest): Promise<CurrentUser | null> {
@@ -131,6 +177,11 @@ function textList(value: unknown, maxItems = 20) {
   return value.map((item) => cleanText(item, 80)).filter(Boolean).slice(0, maxItems)
 }
 
+function csvCell(value: unknown) {
+  const text = value == null ? '' : String(value)
+  return `"${text.replace(/"/g, '""')}"`
+}
+
 function mapApplicant(row: Record<string, unknown>) {
   return {
     id: row.id, fullName: row.full_name, email: row.email, phoneNumber: row.phone_number,
@@ -149,8 +200,19 @@ async function audit(actorId: string, entityType: string, entityId: string, acti
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const startedAt = Date.now()
+  const requestId = cleanText(req.headers['x-vercel-id'] || req.headers['x-request-id'] || randomBytes(8).toString('hex'), 160)
+  res.setHeader('X-Request-Id', requestId)
+  res.setHeader('Cache-Control', 'no-store')
+  res.on('finish', () => {
+    console.log(JSON.stringify({
+      level: 'info', message: 'request_completed', requestId, method: req.method,
+      path: pathOf(req), status: res.statusCode, durationMs: Date.now() - startedAt,
+    }))
+  })
   try {
     const path = pathOf(req)
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method || 'GET') && !validRequestOrigin(req, res)) return
 
     if (path === '/health' && req.method === 'GET') {
       await db()`SELECT 1`
@@ -163,6 +225,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return json(res, 400, { error: 'Name, valid role, email and password of at least 8 characters are required' })
       }
       const normalized = String(email).trim().toLowerCase()
+      if (!await enforceRateLimit(req, res, 'register', 5, 60 * 60 * 1000, normalized)) return
       const existing = await db()`SELECT id FROM users WHERE email = ${normalized}`
       if (existing.length) return json(res, 409, { error: 'An account with this email already exists' })
       const rows = await db()`
@@ -181,7 +244,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (path === '/auth/login' && req.method === 'POST') {
       const { email, password } = req.body || {}
-      const rows = await db()`SELECT id, email, password_hash, display_name, role, is_verified FROM users WHERE email = ${String(email || '').trim().toLowerCase()} LIMIT 1`
+      const normalizedEmail = String(email || '').trim().toLowerCase()
+      if (!await enforceRateLimit(req, res, 'login', 10, 15 * 60 * 1000, normalizedEmail)) return
+      const rows = await db()`SELECT id, email, password_hash, display_name, role, is_verified FROM users WHERE email = ${normalizedEmail} LIMIT 1`
       const row = rows[0]
       if (!row || !verifyPassword(String(password || ''), row.password_hash as string)) {
         return json(res, 401, { error: 'Invalid email or password' })
@@ -203,13 +268,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return json(res, 200, { ok: true })
     }
 
+    if (path === '/auth/invite' && req.method === 'GET') {
+      const token = cleanText(req.query.token, 100)
+      const rows = await db()`SELECT u.display_name, u.email FROM account_invites i JOIN users u ON u.id=i.user_id
+        WHERE i.token_hash=${hashToken(token)} AND i.accepted_at IS NULL AND i.expires_at > now() LIMIT 1`
+      if (!rows[0]) return json(res, 404, { error: 'This activation link is invalid or has expired' })
+      return json(res, 200, { displayName: rows[0].display_name, email: rows[0].email })
+    }
+
+    if (path === '/auth/invite' && req.method === 'POST') {
+      const token = cleanText(req.body?.token, 100)
+      const password = String(req.body?.password || '')
+      if (password.length < 10) return json(res, 400, { error: 'Choose a password of at least 10 characters' })
+      if (!await enforceRateLimit(req, res, 'invite', 8, 15 * 60 * 1000, token.slice(0, 12))) return
+      const rows = await db()`SELECT i.id, i.user_id FROM account_invites i
+        WHERE i.token_hash=${hashToken(token)} AND i.accepted_at IS NULL AND i.expires_at > now() LIMIT 1`
+      if (!rows[0]) return json(res, 404, { error: 'This activation link is invalid or has expired' })
+      await db()`UPDATE users SET password_hash=${hashPassword(password)}, updated_at=now() WHERE id=${rows[0].user_id}`
+      await db()`UPDATE account_invites SET accepted_at=now() WHERE id=${rows[0].id}`
+      await db()`DELETE FROM sessions WHERE user_id=${rows[0].user_id}`
+      await createSession(res, rows[0].user_id as string)
+      const activated = await db()`SELECT id, email, display_name, role, is_verified FROM users WHERE id=${rows[0].user_id}`
+      const activatedUser = activated[0]
+      return json(res, 200, userDto({ id: activatedUser.id as string, email: activatedUser.email as string,
+        displayName: activatedUser.display_name as string, role: activatedUser.role as Role, isVerified: activatedUser.is_verified as boolean }))
+    }
+
     if (path === '/public/workers' && req.method === 'GET') {
       const rows = await db()`
         SELECT * FROM worker_profiles
         WHERE full_name <> '' AND bio <> '' AND is_published=true
         ORDER BY
           CASE WHEN verification_status->>'overall' = 'fully_verified' THEN 0 ELSE 1 END,
-          rating DESC, experience_years DESC`
+          rating DESC, experience_years DESC
+        LIMIT 100`
+      res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
       return json(res, 200, rows.map((row) => mapPublicWorker(row)))
     }
 
@@ -234,6 +327,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         return json(res, 400, { error: 'Please complete all required booking details' })
       }
+      if (!await enforceRateLimit(req, res, 'booking', 10, 60 * 60 * 1000, clientEmail)) return
+      const clientRequestId = cleanText(b.clientRequestId, 100)
+      if (clientRequestId) {
+        const existing = await db()`SELECT id, status, created_at FROM bookings WHERE client_request_id=${clientRequestId} LIMIT 1`
+        if (existing[0]) return json(res, 200, { id: existing[0].id, status: existing[0].status, createdAt: existing[0].created_at, duplicate: true })
+      }
       const worker = await db()`SELECT user_id FROM worker_profiles WHERE user_id=${cleanText(b.workerId, 36)} AND full_name <> '' LIMIT 1`
       if (!worker[0]) return json(res, 404, { error: 'Professional not found' })
       const signedInUser = await currentUser(req)
@@ -241,11 +340,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const rows = await db()`
         INSERT INTO bookings (
           employer_id, worker_id, client_name, client_email, client_phone, city, suburb,
-          work_type, start_date, schedule_notes, requirements
+          work_type, start_date, schedule_notes, requirements, client_request_id
         ) VALUES (
           ${employerId}, ${worker[0].user_id}, ${clientName}, ${clientEmail}, ${clientPhone},
           ${city}, ${suburb}, ${workType}, ${startDate}, ${cleanText(b.scheduleNotes, 500)},
-          ${cleanText(b.requirements, 1500)}
+          ${cleanText(b.requirements, 1500)}, ${clientRequestId || null}
         ) RETURNING id, status, created_at`
       await db()`INSERT INTO booking_events (booking_id, status, note, actor_id)
         VALUES (${rows[0].id}, 'inquiry', 'Placement request received', ${employerId})`
@@ -264,6 +363,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!fullName || !phoneNumber || !city) {
         return json(res, 400, { error: 'Name, phone number, and city are required' })
       }
+      if (!await enforceRateLimit(req, res, 'application', 5, 60 * 60 * 1000, phoneNumber)) return
       const rows = await db()`
         INSERT INTO applicants (
           full_name, email, phone_number, whatsapp_number, city, suburb, category,
@@ -286,12 +386,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const rows = await db()`
         SELECT wp.*, u.email, u.is_verified
         FROM worker_profiles wp JOIN users u ON u.id=wp.user_id
-        ORDER BY wp.updated_at DESC`
+        ORDER BY wp.updated_at DESC LIMIT 250`
       return json(res, 200, rows.map((row) => ({
         ...mapPublicWorker(row), email: row.email, isVerified: row.is_verified,
         adminNotes: row.admin_notes, phoneNumber: row.phone_number, whatsappNumber: row.whatsapp_number,
         createdAt: row.created_at, updatedAt: row.updated_at,
       })))
+    }
+
+    if (path === '/admin/capacity' && req.method === 'GET') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const [funnel, monthly, daily, inventory] = await Promise.all([
+        db()`SELECT status, count(*)::int AS count FROM bookings
+          WHERE created_at >= date_trunc('month', now()) GROUP BY status`,
+        db()`SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
+          count(*)::int AS inquiries,
+          count(*) FILTER (WHERE status='completed')::int AS completed
+          FROM bookings WHERE created_at >= date_trunc('month', now()) - interval '5 months'
+          GROUP BY date_trunc('month', created_at) ORDER BY date_trunc('month', created_at)`,
+        db()`SELECT to_char(created_at::date, 'YYYY-MM-DD') AS day,
+          count(*) FILTER (WHERE status='completed')::int AS completed
+          FROM bookings WHERE created_at >= now() - interval '30 days'
+          GROUP BY created_at::date ORDER BY created_at::date`,
+        db()`SELECT
+          (SELECT count(*)::int FROM worker_profiles WHERE is_published=true) AS published_workers,
+          (SELECT count(*)::int FROM worker_profiles WHERE is_published=false) AS private_workers,
+          (SELECT count(*)::int FROM applicants WHERE stage NOT IN ('converted','rejected')) AS active_applicants,
+          (SELECT count(*)::int FROM verifications WHERE status='pending') AS pending_verifications`,
+      ])
+      const statusCounts = Object.fromEntries(funnel.map((row) => [row.status, Number(row.count)]))
+      const completed = Number(statusCounts.completed || 0)
+      const totalBookings = Object.values(statusCounts).reduce((sum: number, value) => sum + Number(value), 0)
+      const dayOfMonth = new Date().getUTCDate()
+      const daysInMonth = new Date(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 0).getDate()
+      return json(res, 200, {
+        target: 1000, completed, requiredPerDay: Math.ceil(1000 / daysInMonth),
+        projected: Math.round((completed / Math.max(1, dayOfMonth)) * daysInMonth),
+        conversionRate: totalBookings > 0 ? Math.round((completed / totalBookings) * 1000) / 10 : 0,
+        funnel: statusCounts,
+        inventory: inventory[0],
+        monthly: monthly.map((row) => ({ month: row.month, inquiries: Number(row.inquiries), completed: Number(row.completed) })),
+        daily: daily.map((row) => ({ day: row.day, completed: Number(row.completed) })),
+      })
+    }
+
+    if (path === '/admin/export' && req.method === 'GET') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const entity = cleanText(req.query.entity, 30)
+      let header: string[] = []
+      let rows: Record<string, unknown>[] = []
+      if (entity === 'bookings') {
+        header = ['id', 'client_name', 'client_email', 'client_phone', 'worker_name', 'city', 'suburb', 'work_type', 'start_date', 'status', 'created_at']
+        rows = await db()`SELECT b.id, b.client_name, b.client_email, b.client_phone, w.full_name AS worker_name,
+          b.city, b.suburb, b.work_type, b.start_date, b.status, b.created_at
+          FROM bookings b JOIN worker_profiles w ON w.user_id=b.worker_id ORDER BY b.created_at DESC LIMIT 10000`
+      } else if (entity === 'workers') {
+        header = ['user_id', 'full_name', 'email', 'phone_number', 'city', 'suburb', 'category', 'experience_years', 'is_published', 'updated_at']
+        rows = await db()`SELECT wp.user_id, wp.full_name, u.email, wp.phone_number, wp.city, wp.suburb,
+          wp.category, wp.experience_years, wp.is_published, wp.updated_at
+          FROM worker_profiles wp JOIN users u ON u.id=wp.user_id ORDER BY wp.updated_at DESC LIMIT 10000`
+      } else if (entity === 'applicants') {
+        header = ['id', 'full_name', 'email', 'phone_number', 'city', 'suburb', 'category', 'experience_years', 'stage', 'source', 'created_at']
+        rows = await db()`SELECT id, full_name, email, phone_number, city, suburb, category,
+          experience_years, stage, source, created_at FROM applicants ORDER BY created_at DESC LIMIT 10000`
+      } else return json(res, 400, { error: 'Unknown export type' })
+      const output = [header.map(csvCell).join(','), ...rows.map((row) => header.map((key) => csvCell(row[key])).join(','))].join('\n')
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', `attachment; filename="zmc-${entity}-${new Date().toISOString().slice(0, 10)}.csv"`)
+      return res.status(200).send(output)
     }
 
     if (path === '/admin/workers' && req.method === 'POST') {
@@ -317,7 +479,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ${cleanText(w.adminNotes, 1500)}
       )`
       await audit(user.id, 'worker', workerId, 'created', undefined, { fullName, email })
-      return json(res, 201, { id: workerId })
+      const invite = await createInvite(workerId, user.id)
+      return json(res, 201, { id: workerId, activationToken: invite.token, expiresAt: invite.expiresAt })
     }
 
     if (path === '/admin/workers' && req.method === 'PATCH') {
@@ -338,6 +501,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await db()`UPDATE users SET display_name=${cleanText(w.fullName, 120)}, updated_at=now() WHERE id=${workerId}`
       await audit(user.id, 'worker', workerId, 'updated', before[0], { ...w, workerId: undefined })
       return json(res, 200, { ok: true })
+    }
+
+    const inviteWorkerPath = path.match(/^\/admin\/workers\/([0-9a-f-]{36})\/invite$/i)
+    if (inviteWorkerPath && req.method === 'POST') {
+      if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
+      const worker = await db()`SELECT user_id FROM worker_profiles WHERE user_id=${inviteWorkerPath[1]} LIMIT 1`
+      if (!worker[0]) return json(res, 404, { error: 'Worker not found' })
+      const invite = await createInvite(inviteWorkerPath[1], user.id)
+      await audit(user.id, 'worker', inviteWorkerPath[1], 'activation_link_created')
+      return json(res, 201, { activationToken: invite.token, expiresAt: invite.expiresAt })
     }
 
     if (path === '/admin/workers/import' && req.method === 'POST') {
@@ -376,7 +549,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (path === '/admin/applicants' && req.method === 'GET') {
       if (user.role !== 'admin') return json(res, 403, { error: 'Admin access required' })
-      const rows = await db()`SELECT * FROM applicants ORDER BY created_at DESC`
+      const rows = await db()`SELECT * FROM applicants ORDER BY created_at DESC LIMIT 250`
       return json(res, 200, rows.map((row) => mapApplicant(row)))
     }
 
@@ -408,8 +581,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const applicantId = cleanText(a.applicantId, 36)
       const before = await db()`SELECT * FROM applicants WHERE id=${applicantId}`
       if (!before[0]) return json(res, 404, { error: 'Applicant not found' })
-      await db()`UPDATE applicants SET stage=${a.stage}, notes=${cleanText(a.notes ?? before[0].notes, 1500)},
-        interview_at=${a.interviewAt ? new Date(a.interviewAt) : before[0].interview_at}, updated_at=now() WHERE id=${applicantId}`
+      const updated = await db()`UPDATE applicants SET stage=${a.stage}, notes=${cleanText(a.notes ?? before[0].notes, 1500)},
+        interview_at=${a.interviewAt ? new Date(a.interviewAt) : before[0].interview_at}, updated_at=now()
+        WHERE id=${applicantId} AND stage NOT IN ('converted', 'rejected') RETURNING id`
+      if (!updated[0]) return json(res, 409, { error: 'Applicant is already in a terminal stage' })
       await audit(user.id, 'applicant', applicantId, 'stage_changed', before[0], { stage: a.stage, notes: a.notes, interviewAt: a.interviewAt })
       return json(res, 200, { ok: true })
     }
@@ -438,7 +613,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await db()`UPDATE applicants SET stage='converted', converted_worker_id=${workerId}, updated_at=now() WHERE id=${a.id}`
       await audit(user.id, 'applicant', a.id as string, 'converted', a, { workerId })
       await audit(user.id, 'worker', workerId, 'created_from_applicant', undefined, { applicantId: a.id })
-      return json(res, 201, { workerId })
+      const invite = await createInvite(workerId, user.id)
+      return json(res, 201, { workerId, activationToken: invite.token, expiresAt: invite.expiresAt })
     }
 
     if (path === '/jobs' && req.method === 'GET') {
@@ -512,7 +688,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const rows = await db()`
         SELECT b.*, w.full_name AS worker_name
         FROM bookings b JOIN worker_profiles w ON w.user_id=b.worker_id
-        ORDER BY b.created_at DESC`
+        ORDER BY b.created_at DESC LIMIT 250`
       return json(res, 200, rows.map((b) => ({
         id: b.id, employerId: b.employer_id, workerId: b.worker_id, workerName: b.worker_name,
         clientName: b.client_name, clientEmail: b.client_email, clientPhone: b.client_phone,
@@ -527,7 +703,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const b = req.body || {}
       const allowedStatuses = ['inquiry', 'matched', 'booked', 'fee_paid', 'worker_assigned', 'started', 'completed', 'cancelled']
       if (!allowedStatuses.includes(b.status)) return json(res, 400, { error: 'Invalid booking status' })
-      const updated = await db()`UPDATE bookings SET status=${b.status}, updated_at=now() WHERE id=${cleanText(b.bookingId, 36)} RETURNING id`
+      const updated = await db()`UPDATE bookings SET status=${b.status}, updated_at=now()
+        WHERE id=${cleanText(b.bookingId, 36)} AND status NOT IN ('completed', 'cancelled') RETURNING id`
       if (!updated[0]) return json(res, 404, { error: 'Booking not found' })
       await db()`INSERT INTO booking_events (booking_id, status, note, actor_id)
         VALUES (${updated[0].id}, ${b.status}, ${cleanText(b.note, 500)}, ${user.id})`
@@ -595,7 +772,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return json(res, 404, { error: 'Not found' })
   } catch (error) {
-    console.error(error)
+    console.error(JSON.stringify({
+      level: 'error', message: 'request_failed', requestId, path: pathOf(req),
+      error: error instanceof Error ? error.message : String(error), durationMs: Date.now() - startedAt,
+    }))
     const message = error instanceof Error ? error.message : 'Unexpected server error'
     return json(res, 500, { error: process.env.NODE_ENV === 'production' ? 'Server request failed' : message })
   }

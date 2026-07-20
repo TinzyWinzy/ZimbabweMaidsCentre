@@ -20,7 +20,10 @@ export function useAdminWorkers() {
     mutationFn: (rows: Record<string, unknown>[]) => api<{ imported: number; failed: number; results: { row: number; email: string; status: string; error?: string }[] }>('/admin/workers/import', { method: 'POST', body: JSON.stringify({ rows }) }),
     onSuccess: () => client.invalidateQueries({ queryKey: ['admin-workers'] }),
   })
-  return { workers: query.data || [], isLoading: query.isLoading, create, update, importRows }
+  const invite = useMutation({
+    mutationFn: (workerId: string) => api<{ activationToken: string; expiresAt: string }>(`/admin/workers/${workerId}/invite`, { method: 'POST' }),
+  })
+  return { workers: query.data || [], isLoading: query.isLoading, create, update, importRows, invite }
 }
 
 export function useApplicants() {
