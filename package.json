@@ -15,6 +15,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
+    "db:seed:review": "node --env-file=.env.local scripts/seed-review.mjs",
     "db:setup": "node test-db/setup.mjs"
   },
   "dependencies": {
