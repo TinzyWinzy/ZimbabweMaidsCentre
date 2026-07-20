@@ -1,71 +1,37 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, type QueryConstraint } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { api } from '@/lib/api'
 import type { JobListing } from '@/types/job'
 import { useAuthStore } from '@/stores/authStore'
 
 export function useJobs(filters?: { status?: string; employerId?: string }) {
   const queryClient = useQueryClient()
   const { isDemo, userData } = useAuthStore()
+  const base = isDemo ? '/test/jobs' : '/jobs'
 
   const jobsQuery = useQuery({
     queryKey: ['jobs', filters],
     queryFn: async () => {
       if (isDemo) {
-        const params = new URLSearchParams({
-          uid: userData?.uid || '',
-          role: userData?.role || 'worker',
-        })
-        const response = await fetch(`/api/test/jobs?${params}`)
-        if (!response.ok) throw new Error('Failed to load local test jobs')
-        return await response.json() as JobListing[]
+        const params = new URLSearchParams({ uid: userData?.uid || '', role: userData?.role || 'worker' })
+        return api<JobListing[]>(`${base}?${params}`)
       }
-      const constraints: QueryConstraint[] = []
-      if (filters?.status) constraints.push(where('status', '==', filters.status))
-      if (filters?.employerId) constraints.push(where('employerId', '==', filters.employerId))
-      constraints.push(orderBy('createdAt', 'desc'))
-
-      const q = query(collection(db, 'jobs'), ...constraints)
-      const snapshot = await getDocs(q)
-      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as JobListing))
+      return api<JobListing[]>(base)
     },
   })
 
   const createJob = useMutation({
     mutationFn: async (data: Omit<JobListing, 'id' | 'createdAt'>) => {
-      if (isDemo) {
-        const response = await fetch('/api/test/jobs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        })
-        if (!response.ok) throw new Error('Failed to create local test job')
-        return (await response.json()).id as string
-      }
-      const docRef = await addDoc(collection(db, 'jobs'), {
-        ...data,
-        createdAt: new Date(),
-      })
-      return docRef.id
+      const result = await api<{ id?: string } | JobListing>(base, { method: 'POST', body: JSON.stringify(data) })
+      return 'id' in result ? result.id : undefined
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobs'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs'] }),
   })
 
   const updateJobStatus = useMutation({
-    mutationFn: async ({ jobId, status }: { jobId: string; status: string }) => {
-      await updateDoc(doc(db, 'jobs', jobId), { status })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobs'] })
-    },
+    mutationFn: async ({ jobId, status }: { jobId: string; status: string }) =>
+      api(`/jobs/${jobId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs'] }),
   })
 
-  return {
-    jobs: jobsQuery.data || [],
-    isLoading: jobsQuery.isLoading,
-    createJob,
-    updateJobStatus,
-  }
+  return { jobs: jobsQuery.data || [], isLoading: jobsQuery.isLoading, createJob, updateJobStatus }
 }

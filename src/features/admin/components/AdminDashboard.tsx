@@ -1,35 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
-import { collection, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { Users, Briefcase, FileCheck, DollarSign, ArrowRight, Database, KeyRound, ListChecks } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { api } from '@/lib/api'
 
 export function AdminDashboard() {
   const { isDemo } = useAuthStore()
   const { data: stats } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
-      if (isDemo) {
-        const response = await fetch('/api/test/stats')
-        if (!response.ok) throw new Error('Failed to load local test statistics')
-        return await response.json()
-      }
-      const [usersSnap, jobsSnap, verificationsSnap, paymentsSnap] = await Promise.all([
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'jobs')),
-        getDocs(collection(db, 'verifications')),
-        getDocs(collection(db, 'payments')),
-      ])
-
-      return {
-        totalUsers: usersSnap.size,
-        activeJobs: jobsSnap.docs.filter((d) => d.data().status === 'active').length,
-        pendingVerifications: verificationsSnap.docs.filter((d) => d.data().status === 'pending').length,
-        totalRevenue: paymentsSnap.docs
-          .filter((d) => d.data().status === 'success')
-          .reduce((sum, d) => sum + (d.data().amount || 0), 0),
-      }
+      return api<{ totalUsers: number; activeJobs: number; pendingVerifications: number; totalRevenue: number }>(
+        isDemo ? '/test/stats' : '/stats'
+      )
     },
   })
 

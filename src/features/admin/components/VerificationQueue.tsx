@@ -1,36 +1,16 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { collection, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { useVerification } from '@/features/verification/hooks/useVerification'
 import { useUIStore } from '@/stores/uiStore'
 import { FileCheck, Shield, Clock, ExternalLink } from 'lucide-react'
 import type { VerificationRecord } from '@/types/verification'
-import { useAuthStore } from '@/stores/authStore'
 
 export function AdminVerificationQueue() {
   const [selectedVerification, setSelectedVerification] = useState<VerificationRecord | null>(null)
   const [notes, setNotes] = useState('')
-  const { updateVerificationStatus } = useVerification(undefined)
+  const { updateVerificationStatus, verifications, isLoading } = useVerification(undefined)
   const { showToast } = useUIStore()
-  const isDemo = useAuthStore((state) => state.isDemo)
-
-  const { data: pendingVerifications, isLoading } = useQuery({
-    queryKey: ['admin-verifications'],
-    queryFn: async () => {
-      if (isDemo) {
-        const response = await fetch('/api/test/verifications')
-        if (!response.ok) throw new Error('Could not load verification queue')
-        const records = await response.json() as VerificationRecord[]
-        return records.filter((v) => v.status === 'pending')
-      }
-      const snapshot = await getDocs(collection(db, 'verifications'))
-      return snapshot.docs
-        .map((d) => ({ id: d.id, ...d.data() } as VerificationRecord))
-        .filter((v) => v.status === 'pending')
-    },
-  })
+  const pendingVerifications = verifications.filter((v) => v.status === 'pending')
 
   const handleApprove = async (id: string) => {
     try {

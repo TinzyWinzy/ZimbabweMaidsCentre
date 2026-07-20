@@ -167,25 +167,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'firestore-api-cache',
-              expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'firebase-storage-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 604800 },
-            },
-          },
-        ],
+        runtimeCaching: [],
       },
       manifest: {
         name: 'Zimbabwe Maids Centre',

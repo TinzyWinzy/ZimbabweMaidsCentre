@@ -1,17 +1,22 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { UserData } from '@/types'
-import type { User } from 'firebase/auth'
+
+interface AuthUser {
+  uid: string
+  email?: string | null
+  displayName?: string | null
+}
 
 interface AuthState {
-  user: User | null
+  user: AuthUser | null
   userData: UserData | null
   isAuthenticated: boolean
   isAdmin: boolean
   isEmployer: boolean
   isWorker: boolean
   isDemo: boolean
-  setUser: (user: User | null, userData: UserData | null) => void
+  setUser: (user: AuthUser | null, userData: UserData | null) => void
   demoLogin: (userData: UserData) => void
   logout: () => void
 }
@@ -36,7 +41,7 @@ export const useAuthStore = create<AuthState>()(
         isDemo: false,
       }),
       demoLogin: (userData) => set({
-        user: { uid: userData.uid } as User,
+        user: { uid: userData.uid, email: userData.email, displayName: userData.displayName },
         userData,
         isAuthenticated: true,
         isAdmin: userData.role === 'admin',
