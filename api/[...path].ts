@@ -480,6 +480,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ${cleanText(w.phoneNumber, 40)}, ${cleanText(w.whatsappNumber, 40)}, ${Boolean(w.isPublished)},
         ${cleanText(w.adminNotes, 1500)}
       )`
+      if (cleanText(w.photoURL, 1000)) {
+        await db()`UPDATE worker_profiles SET photo_url=${cleanText(w.photoURL, 1000)} WHERE user_id=${workerId}`
+      }
       await audit(user.id, 'worker', workerId, 'created', undefined, { fullName, email })
       const invite = await createInvite(workerId, user.id)
       return json(res, 201, { id: workerId, activationToken: invite.token, expiresAt: invite.expiresAt })
@@ -497,7 +500,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         skills=${textList(w.skills)}, experience_years=${Math.max(0, Number(w.experienceYears) || 0)},
         salary_min=${Math.max(0, Number(w.salaryMin) || 0)}, salary_max=${Math.max(0, Number(w.salaryMax) || 0)},
         languages=${textList(w.languages)}, bio=${cleanText(w.bio, 1500)}, phone_number=${cleanText(w.phoneNumber, 40)},
-        whatsapp_number=${cleanText(w.whatsappNumber, 40)}, is_published=${Boolean(w.isPublished)},
+        whatsapp_number=${cleanText(w.whatsappNumber, 40)}, photo_url=${cleanText(w.photoURL, 1000) || null},
+        is_published=${Boolean(w.isPublished)},
         admin_notes=${cleanText(w.adminNotes, 1500)}, updated_at=now()
         WHERE user_id=${workerId}`
       await db()`UPDATE users SET display_name=${cleanText(w.fullName, 120)}, updated_at=now() WHERE id=${workerId}`

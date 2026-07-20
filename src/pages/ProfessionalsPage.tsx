@@ -2,10 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, MapPin, Search, ShieldCheck, Star } from 'lucide-react'
 import { usePublicWorkers } from '@/features/workers/usePublicWorkers'
-
-function initials(name: string) {
-  return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('')
-}
+import placeholderPortrait from '../../maid1.jpg'
 
 export function ProfessionalsPage() {
   const { data: workers = [], isLoading, error } = usePublicWorkers()
@@ -92,10 +89,14 @@ export function ProfessionalsPage() {
             <div className="divide-y divide-[#173129]/15">
               {filtered.map((worker, index) => (
                 <article key={worker.id} className="grid gap-7 py-9 md:grid-cols-[120px_1fr_auto] md:items-center">
-                  <div className="flex aspect-square w-[120px] items-center justify-center overflow-hidden bg-[#dfe6d9] font-display text-3xl font-semibold text-[#315d4d]">
-                    {worker.photoURL ? (
-                      <img src={worker.photoURL} alt="" className="h-full w-full object-cover object-center" />
-                    ) : initials(worker.fullName)}
+                  <div className="relative flex aspect-square w-[120px] items-center justify-center overflow-hidden bg-[#dfe6d9] font-display text-3xl font-semibold text-[#315d4d]">
+                    <img
+                      src={worker.photoURL || placeholderPortrait}
+                      alt={worker.photoURL ? `${worker.fullName} profile` : ''}
+                      onError={(event) => { event.currentTarget.src = placeholderPortrait; event.currentTarget.alt = '' }}
+                      className="h-full w-full object-cover object-center"
+                    />
+                    {!worker.photoURL && <span className="absolute left-2 top-2 bg-[#f4f1e9]/90 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5b6e66]">Photo pending</span>}
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-3">

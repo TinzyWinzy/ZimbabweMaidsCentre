@@ -8,7 +8,7 @@ const blankWorker = {
   workerId: '', fullName: '', email: '', phoneNumber: '', whatsappNumber: '', city: 'Harare',
   suburb: '', category: 'Housekeeper', workTypes: [] as string[], skills: [] as string[],
   languages: [] as string[], experienceYears: 0, salaryMin: 0, salaryMax: 0,
-  bio: '', adminNotes: '', isPublished: false,
+  bio: '', photoURL: '', adminNotes: '', isPublished: false,
 }
 
 function list(value: string) {
@@ -55,7 +55,7 @@ export function AdminWorkersPage() {
       whatsappNumber: worker.whatsappNumber, city: worker.location.city, suburb: worker.location.suburb,
       category: worker.category, workTypes: worker.workTypes, skills: worker.skills, languages: worker.languages,
       experienceYears: worker.experienceYears, salaryMin: worker.expectedSalary.min, salaryMax: worker.expectedSalary.max,
-      bio: worker.bio, adminNotes: worker.adminNotes, isPublished: worker.isPublished,
+      bio: worker.bio, photoURL: worker.photoURL, adminNotes: worker.adminNotes, isPublished: worker.isPublished,
     })
   }
 
@@ -163,6 +163,7 @@ function WorkerEditor({ worker, setWorker, onClose, onSave, onInvite, error, bus
       <EditorField label="Work types" wide><input value={worker.workTypes.join(', ')} onChange={(e) => set('workTypes', list(e.target.value))} placeholder="live-in, live-out, part-time" /></EditorField>
       <EditorField label="Skills" wide><input value={worker.skills.join(', ')} onChange={(e) => set('skills', list(e.target.value))} placeholder="Childcare, Cooking, Laundry" /></EditorField>
       <EditorField label="Languages" wide><input value={worker.languages.join(', ')} onChange={(e) => set('languages', list(e.target.value))} placeholder="English, Shona, Ndebele" /></EditorField>
+      <EditorField label="Approved profile photo URL" wide><input type="url" value={worker.photoURL} onChange={(e) => set('photoURL', e.target.value)} placeholder="https://…/worker-photo.jpg" /></EditorField>
       <EditorField label="Public biography" wide><textarea value={worker.bio} onChange={(e) => set('bio', e.target.value)} /></EditorField>
       <EditorField label="Internal notes" wide><textarea value={worker.adminNotes} onChange={(e) => set('adminNotes', e.target.value)} /></EditorField>
       <label className="flex items-center gap-3 sm:col-span-2"><input type="checkbox" checked={worker.isPublished} onChange={(e) => set('isPublished', e.target.checked)} className="h-4 w-4 accent-[#43892d]" /><span className="text-sm font-semibold text-[#31483f]">Publish this profile in the public directory</span></label>

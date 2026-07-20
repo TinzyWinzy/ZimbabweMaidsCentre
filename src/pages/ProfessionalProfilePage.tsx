@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, MapPin, ShieldCheck, Star } from 'lucide-react'
 import { usePublicWorker } from '@/features/workers/usePublicWorkers'
+import placeholderPortrait from '../../maid1.jpg'
 
 const verificationLabels: Record<string, string> = {
   kyc: 'Identity documents',
@@ -16,8 +17,6 @@ export function ProfessionalProfilePage() {
   if (isLoading) return <main className="min-h-screen bg-[#f4f1e9] pt-[72px]"><div className="mx-auto max-w-6xl px-5 py-24">Loading profile…</div></main>
   if (error || !worker) return <main className="min-h-screen bg-[#f4f1e9] pt-[72px]"><div className="mx-auto max-w-6xl px-5 py-24"><h1 className="font-display text-4xl font-semibold">Professional not found.</h1><Link to="/professionals" className="mt-6 inline-block text-[#43892d]">Return to directory</Link></div></main>
 
-  const initials = worker.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('')
-
   return (
     <main className="min-h-screen bg-[#f4f1e9] pb-24 pt-[72px] text-[#173129]">
       <div className="mx-auto max-w-[1280px] px-5 py-8 sm:px-10 lg:px-16">
@@ -26,8 +25,14 @@ export function ProfessionalProfilePage() {
         </Link>
 
         <section className="mt-8 grid overflow-hidden border border-[#173129]/15 bg-[#faf8f2] lg:grid-cols-[0.78fr_1.22fr]">
-          <div className="flex min-h-[420px] items-center justify-center bg-[#dfe6d9] font-display text-8xl font-semibold text-[#315d4d] lg:min-h-[650px]">
-            {worker.photoURL ? <img src={worker.photoURL} alt="" className="h-full w-full object-cover object-center" /> : initials}
+          <div className="relative flex min-h-[420px] items-center justify-center bg-[#dfe6d9] font-display text-8xl font-semibold text-[#315d4d] lg:min-h-[650px]">
+            <img
+              src={worker.photoURL || placeholderPortrait}
+              alt={worker.photoURL ? `${worker.fullName} profile` : ''}
+              onError={(event) => { event.currentTarget.src = placeholderPortrait; event.currentTarget.alt = '' }}
+              className="h-full w-full object-cover object-center"
+            />
+            {!worker.photoURL && <span className="absolute left-4 top-4 bg-[#f4f1e9]/90 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#5b6e66]">Illustrative image · photo pending</span>}
           </div>
           <div className="flex flex-col justify-center p-7 sm:p-12 lg:p-16">
             <div className="flex flex-wrap items-center gap-3">
