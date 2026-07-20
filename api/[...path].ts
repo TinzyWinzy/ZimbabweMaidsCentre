@@ -414,7 +414,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           (SELECT count(*)::int FROM applicants WHERE stage NOT IN ('converted','rejected')) AS active_applicants,
           (SELECT count(*)::int FROM verifications WHERE status='pending') AS pending_verifications`,
       ])
-      const statusCounts = Object.fromEntries(funnel.map((row) => [row.status, Number(row.count)]))
+      const statusCounts = Object.fromEntries(
+        funnel.map((row) => [String(row.status), Number(row.count)])
+      ) as Record<string, number>
       const completed = Number(statusCounts.completed || 0)
       const totalBookings = Object.values(statusCounts).reduce((sum: number, value) => sum + Number(value), 0)
       const dayOfMonth = new Date().getUTCDate()
