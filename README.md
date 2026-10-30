@@ -1,4 +1,4 @@
-﻿# Zimbabwe Maids Centre
+# Zimbabwe Maids Centre
 
 Domestic worker placement platform for Zimbabwe. Verified workers, structured placement requests, payments and an operations back office.
 
