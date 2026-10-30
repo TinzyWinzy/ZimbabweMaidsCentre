@@ -1,4 +1,4 @@
-# Zimbabwe Maids Centre
+﻿# Zimbabwe Maids Centre
 
 Domestic worker placement platform for Zimbabwe. Verified workers, structured placement requests, payments and an operations back office.
 
@@ -82,4 +82,4 @@ src/types/    shared types
 
 ## Author
 
-Tinotenda Brandon Duma, Radbit Studios. Contact: brandon@radbitstudios.com
+Tinotenda Brandon Duma, Radbit Studios. Contact: brandontinoz@gmail.com
